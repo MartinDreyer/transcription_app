@@ -1,1 +1,4 @@
 .env
+flask_venv/
+uploads/
+__pycache__/
