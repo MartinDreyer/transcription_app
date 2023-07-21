@@ -1,4 +1,4 @@
 .env
-flask_venv/
+flask_env/
 uploads/
 __pycache__/
