@@ -1,4 +1,8 @@
 .env
-flask_env/
+flask_venv/
 uploads/
+__pycache__/
+build/
+dist/
+.vscode/
 __pycache__/
