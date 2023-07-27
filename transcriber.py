@@ -1,5 +1,5 @@
 # transcription.py
-from helper_functions import output_to_text_file, transcribe, allowed_file
+from helper_functions import transcribe, allowed_file
 import os
 import re
 from dotenv import load_dotenv
@@ -23,11 +23,9 @@ def transcribe_and_generate_srt(file_path):
 
         print("Transcribing file")
         transcription = transcribe(file_path, LANGUAGE, MODEL_SIZE)
+        srt_file = re.sub(r"\.[^.]+$", ".srt", os.path.basename(file_path))
 
-        srt_file = re.sub(r"\.[^.]+$", ".srt", file_path)
-        output_to_text_file(transcription, srt_file)
-
-        return srt_file
+        return transcription, srt_file
 
     except Exception as e:
         print(f"Error during transcription: {e}")

@@ -7,9 +7,9 @@ block_cipher = None
 a = Analysis(
     ['gui.py'],
     pathex=[],
-    binaries=[],
+    binaries=[('C:\\Users\\madr\\Desktop\\Code\\transcription\\flaskserver_transcription\\ffmpeg.exe', '.')],
     datas=[],
-    hiddenimports=[],
+    hiddenimports=['tk', 'ffmpeg-python', 'python-dotenv', 'openai-whisper'],
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
