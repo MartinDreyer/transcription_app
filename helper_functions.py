@@ -1,13 +1,42 @@
 import whisper
+import sys
+import os
+import traceback
 
+
+def set_ffmpeg_path():
+    # Assuming the ffmpeg.exe is in the same directory as your main script
+    ffmpeg_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "ffmpeg.exe")
+
+    # Get the current PATH environment variable
+    current_path = os.environ.get("PATH", "")
+
+    # Append the directory containing the ffmpeg executable to the PATH
+    os.environ["PATH"] = f"{current_path}{os.pathsep}{os.path.dirname(ffmpeg_path)}"
+
+
+def get_resource_path(relative_path):
+    """Get the absolute path to the resource, works for development and PyInstaller"""
+    if hasattr(sys, "_MEIPASS"):
+        # If running as a PyInstaller executable, use sys._MEIPASS
+        return os.path.join(sys._MEIPASS, relative_path)
+    else:
+        # If running as a regular Python script, use the current working directory
+        return os.path.join(os.getcwd(), relative_path)
 
 def transcribe(file_path: str, language: str = "danish", model_size: str = "large"):
     try:
         model = whisper.load_model(model_size)
+        if model:
+            print("Model loaded succesfully")
+        print("Transcribing file")
         transcription = model.transcribe(
-            file_path, language=language, fp16=False, verbose=None)
+            get_resource_path(file_path), language=language, fp16=False, verbose=None)
+        if transcription:
+            print("Transcription finished")
         return transcription
     except Exception as e:
+        traceback.print_exc()
         print(f"Error during transcription: {e}")
         return None
 

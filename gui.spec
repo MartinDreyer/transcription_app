@@ -7,9 +7,9 @@ block_cipher = None
 a = Analysis(
     ['gui.py'],
     pathex=[],
-    binaries=[('C:\\Users\\madr\\Desktop\\Code\\transcription\\flaskserver_transcription\\ffmpeg.exe', '.')],
-    datas=[],
-    hiddenimports=['tk', 'ffmpeg-python', 'python-dotenv', 'openai-whisper'],
+    binaries=[('C:/Users/madr/Desktop/Code/transcription/flaskserver_transcription/ffmpeg.exe','.')],
+    datas=[('C:/Users/madr/.virtualenvs/flaskserver_transcription-_lEP_rzU/Lib/site-packages/whisper', './whisper'),('C:/Users/madr/Desktop/Code/transcription/flaskserver_transcription/ffmpeg.exe','.')],
+    hiddenimports=[],
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
@@ -28,7 +28,7 @@ exe = EXE(
     a.zipfiles,
     a.datas,
     [],
-    name='gui',
+    name='Lyd til SRT',
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
@@ -41,4 +41,5 @@ exe = EXE(
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
+    icon="C:/Users/madr/Desktop/Code/transcription/flaskserver_transcription/icon.ico"
 )

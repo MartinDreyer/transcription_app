@@ -1,8 +1,6 @@
 .env
-venv/
-uploads/
 dist/
 .vscode/
 __pycache__/
 build/
-flask_env/
+ffmpeg.exe
