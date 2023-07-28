@@ -3,4 +3,3 @@ dist/
 .vscode/
 __pycache__/
 build/
-ffmpeg.exe
