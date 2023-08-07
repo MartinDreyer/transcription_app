@@ -2,12 +2,10 @@
 from helper_functions import transcribe, allowed_file
 import os
 import re
-from dotenv import load_dotenv
 import subprocess
 
 
 
-load_dotenv()
 
 
 MODEL_SIZE = "large"
