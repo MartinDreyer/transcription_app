@@ -10,9 +10,9 @@ import subprocess
 load_dotenv()
 
 
-MODEL_SIZE = os.getenv("MODEL_SIZE")
-LANGUAGE = os.getenv("LANGUAGE")
-ALLOWED_EXTENSIONS = os.getenv("ALLOWED_EXTENSIONS")
+MODEL_SIZE = "large"
+LANGUAGE = "danish"
+ALLOWED_EXTENSIONS = ["wav", "srt"]
 
 
 
