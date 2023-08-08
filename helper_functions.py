@@ -32,7 +32,7 @@ def transcribe(file_path: str, language: str = "danish", model_size: str = "larg
             print("Model loaded succesfully")
         print("Transcribing file")
         transcription = model.transcribe(
-            get_resource_path(file_path), language=language, fp16=False, verbose=None)
+            get_resource_path(file_path), language=language, fp16=False, verbose=False)
         if transcription:
             print("Transcription finished")
         return transcription
