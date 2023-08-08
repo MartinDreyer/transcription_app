@@ -1,6 +1,7 @@
 import whisper
 import sys
 import os
+import re
 import traceback
 
 
@@ -70,3 +71,26 @@ def output_to_text_file(data_dict: dict, output_file_name: str):
 def allowed_file(filename, ALLOWED_EXTENSIONS):
     return '.' in filename and \
            filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
+
+
+
+
+MODEL_SIZE = "large"
+LANGUAGE = "danish"
+ALLOWED_EXTENSIONS = ["wav", "srt"]
+
+
+
+def transcribe_and_generate_srt(file_path):
+    try:
+        if not allowed_file(file_path, ALLOWED_EXTENSIONS):
+            raise ValueError("Invalid file type")
+            
+        transcription = transcribe(file_path, LANGUAGE, MODEL_SIZE)
+        srt_file = re.sub(r"\.[^.]+$", ".srt", os.path.basename(file_path))
+
+        return transcription, srt_file
+
+    except Exception as e:
+        print(f"Error during transcription: {e}")
+        return None

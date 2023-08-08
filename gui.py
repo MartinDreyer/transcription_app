@@ -1,8 +1,7 @@
 import tkinter as tk
 import tkinter.messagebox as messagebox
 import tkinter.filedialog as filedialog
-from transcriber import transcribe_and_generate_srt
-from helper_functions import output_to_text_file, get_resource_path, set_ffmpeg_path
+from helper_functions import output_to_text_file, get_resource_path, set_ffmpeg_path, transcribe_and_generate_srt
 import threading
 import os
 import re
