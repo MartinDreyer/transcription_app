@@ -3,12 +3,24 @@
 
 block_cipher = None
 
+import os
+import sys
+
+# Define the function to find the 'whisper' path
+def find_whisper_path():
+    python_executable = sys.executable
+    python_base_path = os.path.dirname(os.path.dirname(python_executable))
+    whisper_path = os.path.join(python_base_path, 'Lib', 'site-packages', 'whisper')
+    return whisper_path
+
+# Use the function to get the 'whisper' path
+whisper_path = find_whisper_path()
 
 a = Analysis(
     ['gui.py'],
     pathex=[],
-    binaries=[('C:/Users/madr/Desktop/Code/transcription/flaskserver_transcription/ffmpeg.exe','.')],
-    datas=[('C:/Users/madr/.virtualenvs/flaskserver_transcription-_lEP_rzU/Lib/site-packages/whisper', './whisper'),('C:/Users/madr/Desktop/Code/transcription/flaskserver_transcription/ffmpeg.exe','.')],
+    binaries=[('ffmpeg.exe','.')],
+    datas=[(whisper_path, './whisper'),('ffmpeg.exe','.')],
     hiddenimports=[],
     hookspath=[],
     hooksconfig={},
@@ -41,5 +53,5 @@ exe = EXE(
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
-    icon="C:/Users/madr/Desktop/Code/transcription/flaskserver_transcription/icon.ico"
+    icon="icon.ico"
 )
