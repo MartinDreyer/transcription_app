@@ -31,6 +31,9 @@ After building the executable, you can run it as a regulare .exe-file. You can a
 
 `./dist/Lyd til SRT.exe`
 
+### License
+The app is under the  GNU GENERAL PUBLIC LICENSE, please adhere to the terms of the license, which you can read in the LICENSE file. 
+
 ### Contributing
 
-Contributions are welcome. Feel free to open an issue or submit a pull request. The app is under the  GNU GENERAL PUBLIC LICENSE, please adhere to the terms of the license, which you can read in the LICENSE file. 
+Contributions are welcome. Feel free to open an issue or submit a pull request. 
