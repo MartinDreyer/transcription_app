@@ -1,10 +1,35 @@
+"""
+This program is a simple transcriber, that transcribes 
+audio files and returns an SRT-file. The transcribing is
+done by OpenAI's Whisper model: https://github.com/openai/whisper
+
+This code bundles into an .exe-file that runs on Windows. It is developed on a Windows 11 machine, 
+but has run succesfully on Windows 7 and 10 machines.
+
+Author: Martin Dreyer
+"""
+
+# This file is part of NAVN.
+#
+# NAVN is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License, version 3, as published by
+# the Free Software Foundation.
+#
+# My GNU Python Program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with NAVN. If not, see <https://www.gnu.org/licenses/>.
+
+
 import tkinter as tk
 import tkinter.messagebox as messagebox
 import tkinter.filedialog as filedialog
 from helper_functions import output_to_text_file, get_resource_path, set_ffmpeg_path, transcribe_and_generate_srt
 import threading
 import os
-import re
 import subprocess
 
 
