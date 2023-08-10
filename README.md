@@ -6,7 +6,7 @@
 
 ### Prerequisites
 
-- [Python](https://www.python.org/downloads/) (version X.X or higher)
+- [Python](https://www.python.org/downloads/) (version: the app was developed using 3.11, but might run on other versions)
 - [Pipenv](https://pipenv.pypa.io/en/latest/#install-pipenv-today) (install using `pip install pipenv`)
 
 ### Installation
