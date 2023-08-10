@@ -32,4 +32,4 @@ After building the executable, you can run it in the terminal:
 
 ### Contributing
 
-Contributions are welcome. Feel free to open an issue or submit a pull request.
+Contributions are welcome. Feel free to open an issue or submit a pull request. The app is under the  GNU GENERAL PUBLIC LICENSE, please adhere to the terms of the license, which you can read in the LICENSE file. 
