@@ -26,7 +26,7 @@
 
 ### Running the Executable
 
-After building the executable, you can run it in the terminal:
+After building the executable, you can run it as a regulare .exe-file. You can also run it in the terminal:
 
 `./dist/Lyd til SRT.exe`
 
