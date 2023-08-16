@@ -19,6 +19,11 @@ import os
 import re
 import traceback
 
+# Set parameters
+MODEL_SIZE = "large"
+LANGUAGE = "danish"
+ALLOWED_EXTENSIONS = ["wav", "mp3"]
+
 
 def set_ffmpeg_path():
     # Assuming the ffmpeg.exe is in the same directory as your main script
@@ -44,8 +49,8 @@ def transcribe(file_path: str, language: str = "danish", model_size: str = "larg
     try:
         model = whisper.load_model(model_size)
         if model:
-            print("Model loaded succesfully")
-        print("Transcribing file")
+            print(f"Model loaded succesfully: \n {model}")
+        print(f"Transcribing file: {file_path}")
         transcription = model.transcribe(
             get_resource_path(file_path), language=language, fp16=False, verbose=False)
         if transcription:
@@ -87,25 +92,16 @@ def allowed_file(filename, ALLOWED_EXTENSIONS):
     return '.' in filename and \
            filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
-
-
-
-MODEL_SIZE = "large"
-LANGUAGE = "danish"
-ALLOWED_EXTENSIONS = ["wav", "srt"]
-
-
-
-def transcribe_and_generate_srt(file_path):
+def get_srt_name(file_path):
     try:
         if not allowed_file(file_path, ALLOWED_EXTENSIONS):
             raise ValueError("Invalid file type")
             
-        transcription = transcribe(file_path, LANGUAGE, MODEL_SIZE)
         srt_file = re.sub(r"\.[^.]+$", ".srt", os.path.basename(file_path))
 
-        return transcription, srt_file
+        return srt_file
 
     except Exception as e:
-        print(f"Error during transcription: {e}")
+        print(f"Error during creation of srt-file: {e}")
         return None
+

@@ -27,7 +27,7 @@ Author: Martin Dreyer
 import tkinter as tk
 import tkinter.messagebox as messagebox
 import tkinter.filedialog as filedialog
-from helper_functions import output_to_text_file, get_resource_path, set_ffmpeg_path, transcribe_and_generate_srt
+import helper_functions as hf
 import threading
 import os
 import subprocess
@@ -69,7 +69,8 @@ class TranscriberApp(tk.Tk):
 
     def transcribe_and_save_srt(self, file_path):
         try:
-            transcription, srt_file = transcribe_and_generate_srt(get_resource_path(file_path))
+            transcription = hf.transcribe(hf.get_resource_path(file_path))
+            srt_file = hf.get_srt_name(hf.get_resource_path(file_path))
             if transcription:
                 # Ask the user to specify the save location
                 save_path = filedialog.asksaveasfilename(
@@ -77,7 +78,7 @@ class TranscriberApp(tk.Tk):
                 )
                 if save_path:
                     # Save the content directly to the user-specified location
-                    output_to_text_file(transcription, get_resource_path(save_path))
+                    hf.output_to_text_file(transcription, hf.get_resource_path(save_path))
                     # Show a success message to the user
                     messagebox.showinfo("Fil Gemt", "Din SRT-fil er gemt!")
         except Exception as e:
@@ -88,7 +89,7 @@ class TranscriberApp(tk.Tk):
             self.button.config(state=tk.NORMAL)
 
 def main():
-    set_ffmpeg_path()
+    hf.set_ffmpeg_path()
     print("Loading")
 
     if is_ffmpeg_available():
