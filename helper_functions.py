@@ -1,16 +1,27 @@
-# This file is part of NAVN.
+"""
+This program is a simple transcriber, that transcribes 
+audio files and returns an SRT-file. The transcribing is
+done by OpenAI's Whisper model: https://github.com/openai/whisper
+
+This code bundles into an .exe-file that runs on Windows. It is developed on a Windows 11 machine, 
+but has run succesfully on Windows 7 and 10 machines.
+
+Author: Martin Dreyer
+"""
+
+# This file is part of T-tex.
 #
-# NAVN is free software: you can redistribute it and/or modify
+# T-tex is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License, version 3, as published by
 # the Free Software Foundation.
 #
-# NAVN is distributed in the hope that it will be useful,
+# T-tex is distributed in the hope that it will be useful,
 # but WITHOUT ANY WARRANTY; without even the implied warranty of
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
 # GNU General Public License for more details.
 #
 # You should have received a copy of the GNU General Public License
-# along with NAVN. If not, see <https://www.gnu.org/licenses/>.
+# along with T-tex. If not, see <https://www.gnu.org/licenses/>.
 
 
 import whisper
