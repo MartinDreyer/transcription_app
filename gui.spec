@@ -40,7 +40,7 @@ exe = EXE(
     a.zipfiles,
     a.datas,
     [],
-    name='Lyd til SRT',
+    name='T-tex',
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,

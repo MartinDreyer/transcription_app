@@ -33,7 +33,7 @@ import traceback
 # Set parameters
 MODEL_SIZE = "large"
 LANGUAGE = "danish"
-ALLOWED_EXTENSIONS = ["wav", "mp3"]
+ALLOWED_EXTENSIONS = ["wav", "mp3", "mp4", "mpga", "webm", "m4a"]
 
 
 def set_ffmpeg_path():
