@@ -10,7 +10,7 @@ import subprocess
 
 def is_ffmpeg_available():
     try:
-        ffmpeg_path = os.path.join(os.path.dirname(__file__), "ffmpeg.exe")
+        ffmpeg_path = os.path.join(os.path.dirname(__file__), "ffmpeg")
         subprocess.run([ffmpeg_path, '-version'], check=True)
         return True
     except subprocess.CalledProcessError:

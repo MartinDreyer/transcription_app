@@ -10,7 +10,7 @@ import sys
 def find_whisper_path():
     python_executable = sys.executable
     python_base_path = os.path.dirname(os.path.dirname(python_executable))
-    whisper_path = os.path.join(python_base_path, 'Lib', 'site-packages', 'whisper')
+    whisper_path = os.path.join(python_base_path, 'lib', 'python3.11', 'site-packages', 'whisper')
     return whisper_path
 
 # Use the function to get the 'whisper' path
@@ -19,8 +19,8 @@ whisper_path = find_whisper_path()
 a = Analysis(
     ['gui.py'],
     pathex=[],
-    binaries=[('ffmpeg.exe','.')],
-    datas=[(whisper_path, './whisper'),('ffmpeg.exe','.')],
+    binaries=[('ffmpeg','.')],
+    datas=[(whisper_path, './whisper'),('ffmpeg','.')],
     hiddenimports=[],
     hookspath=[],
     hooksconfig={},
@@ -40,7 +40,7 @@ exe = EXE(
     a.zipfiles,
     a.datas,
     [],
-    name='Lyd til SRT',
+    name='T-Tex',
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
