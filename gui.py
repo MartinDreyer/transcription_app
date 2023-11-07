@@ -46,7 +46,7 @@ def is_ffmpeg_available():
 class TranscriberApp(tk.Tk):
     def __init__(self):
         super().__init__()
-        self.title("Lyd til SRT")
+        self.title("windowshvisker")
         self.geometry("300x100")
 
         self.label = tk.Label(
