@@ -60,7 +60,7 @@ def transcribe(file_path: str, language: str = "danish", model_size: str = "larg
     try:
         model = whisper.load_model(model_size)
         if model:
-            print(f"Model loaded succesfully: \n {model}")
+            print(f"Model loaded succesfully")
         print(f"Transcribing file: {file_path}")
         transcription = model.transcribe(
             get_resource_path(file_path), language=language, fp16=False, verbose=False)
