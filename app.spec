@@ -17,7 +17,7 @@ def find_whisper_path():
 whisper_path = find_whisper_path()
 
 a = Analysis(
-    ['gui.py'],
+    ['app.py'],
     pathex=[],
     binaries=[('ffmpeg.exe','.')],
     datas=[(whisper_path, './whisper'),('ffmpeg.exe','.')],
@@ -41,7 +41,7 @@ exe = EXE(
     debug=False,
     bootloader_ignore_signals=False,
     runtime_tmpdir=None,
-    console=True,
+    console=False,
     disable_windowed_traceback=False,
     argv_emulation=False,
     target_arch=None,
