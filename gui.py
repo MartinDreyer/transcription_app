@@ -28,11 +28,30 @@ import tkinter as tk
 from tkinter import ttk
 import tkinter.messagebox as messagebox
 import tkinter.filedialog as filedialog
-import helper_functions as helper_functions
 import threading
 import os
 import subprocess
 import sys
+import whisper
+import traceback
+import re
+
+# Transcriber settings
+MODEL_SIZE = "large"
+LANGUAGE = "danish"
+ALLOWED_EXTENSIONS = ["wav", "mp3", "mp4", "mpga", "webm", "m4a"]
+
+# GUI Styling
+FONT = 'Helvetica'
+COLOR = "#102542"
+BACKGROUND = '#CDD7D6'
+BUTTON_COLOR = '#FFFFFF'
+BUTTON_BG = "#102542"
+HEIGHT = 200
+WIDTH = 750
+TEXTBOX_BACKGROUND = "#FFFFFF"
+TEXTBOX_COLOR = "#102542"
+
 
 
 def is_ffmpeg_available():
@@ -45,6 +64,86 @@ def is_ffmpeg_available():
     
 
 
+class Transcriber:
+    def __init__(self):
+        self = self
+
+    def set_ffmpeg_path(self):
+    # Assuming the ffmpeg.exe is in the same directory as your main script
+        ffmpeg_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "ffmpeg.exe")
+
+        # Get the current PATH environment variable
+        current_path = os.environ.get("PATH", "")
+
+        # Append the directory containing the ffmpeg executable to the PATH
+        os.environ["PATH"] = f"{current_path}{os.pathsep}{os.path.dirname(ffmpeg_path)}"
+
+    def get_resource_path(self, relative_path):
+        """Get the absolute path to the resource, works for development and PyInstaller"""
+        if hasattr(sys, "_MEIPASS"):
+            # If running as a PyInstaller executable, use sys._MEIPASS
+            return os.path.join(sys._MEIPASS, relative_path)
+        else:
+            # If running as a regular Python script, use the current working directory
+            return os.path.join(os.getcwd(), relative_path)
+    def transcribe(self, file_path: str, language: str = "danish", model_size: str = "large"):
+        try:
+            model = whisper.load_model(model_size)
+            if model:
+                print(f"Model loaded succesfully")
+            print(f"Transcribing file: {file_path}")
+            transcription = model.transcribe(
+                self.get_resource_path(file_path), language=language, fp16=False, verbose=True)
+            if transcription:
+                print("Transcription finished")
+            return transcription
+        except Exception as e:
+            traceback.print_exc()
+            print(f"Error during transcription: {e}")
+            return None
+        
+    def float_to_time(self, float_value: float):
+        milliseconds = int((float_value % 1) * 1000)
+        seconds = int(float_value % 60)
+        minutes = int((float_value // 60) % 60)
+        hours = int(float_value // 3600)
+
+        time_str = f"{hours:02d}:{minutes:02d}:{seconds:02d},{milliseconds:03d}"
+        return time_str
+    
+    def output_to_text_file(self, data_dict: dict, output_file_name: str):
+        index = 1
+        try:
+            with open(output_file_name, "w", encoding="utf-8") as file:
+                for value in data_dict["segments"]:
+                    start_time_str = self.float_to_time(value["start"])
+                    end_time_str = self.float_to_time(value["end"])
+                    text = value["text"].strip()
+                    file.write(f"{index}\n")
+                    file.write(f"{start_time_str} --> {end_time_str}\n")
+                    file.write(f"{text}\n\n")
+                    index = index + 1
+        except Exception as e:
+            print(f"Error during writing to text file: {e}")
+    
+    def allowed_file(self, filename, ALLOWED_EXTENSIONS):
+        return '.' in filename and \
+            filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
+
+    def get_srt_name(self, file_path):
+        try:
+            if not self.allowed_file(file_path, ALLOWED_EXTENSIONS):
+                raise ValueError("Invalid file type")
+                
+            srt_file = re.sub(r"\.[^.]+$", ".srt", os.path.basename(file_path))
+
+            return srt_file
+
+        except Exception as e:
+            print(f"Error during creation of srt-file: {e}")
+            return None
+    
+
 class Redirector:
     def __init__(self, text_widget):
         self.text_widget = text_widget
@@ -54,18 +153,10 @@ class Redirector:
         self.text_widget.insert(tk.END, text)
         self.text_widget.see(tk.END)
 
-class TranscriberApp(tk.Tk):
-    def __init__(self):
-        FONT = 'Helvetica'
-        COLOR = "#102542"
-        BACKGROUND = '#CDD7D6'
-        BUTTON_COLOR = '#FFFFFF'
-        BUTTON_BG = "#102542"
-        HEIGHT = 200
-        WIDTH = 750
-        TEXTBOX_BACKGROUND = "#FFFFFF"
-        TEXTBOX_COLOR = "#102542"
+transcriber = Transcriber()
 
+class App(tk.Tk):
+    def __init__(self):
         super().__init__()
         self.frame = tk.Frame(self, height=HEIGHT, width=WIDTH)
         self.frame.config(bg=BACKGROUND, )
@@ -114,29 +205,33 @@ class TranscriberApp(tk.Tk):
 
             # Start the transcription task in a separate thread
             transcription_thread = threading.Thread(
-                target=self.transcribe_and_save_srt, args=(file_path,)
+                target=self.transcribe, args=(file_path,)
             )
             transcription_thread.start()
 
-    def transcribe_and_save_srt(self, file_path):
-        try:
-            transcription = helper_functions.transcribe(helper_functions.get_resource_path(file_path))
-            srt_file = helper_functions.get_srt_name(helper_functions.get_resource_path(file_path))
-            if transcription:
-                # Ask the user to specify the save location
-                save_path = filedialog.asksaveasfilename(
-                    title="Gem fil som",
-                    defaultextension=".srt",
-                    filetype=[("SubRip (.srt)", ".srt")],
-                    initialfile=srt_file,
+    def save_srt(self, srt_file, transcription):
+        if transcription:
+            # Ask the user to specify the save location
+            save_path = filedialog.asksaveasfilename(
+                title="Gem fil som",
+                defaultextension=".srt",
+                filetype=[("SubRip (.srt)", ".srt")],
+                initialfile=srt_file,
+            )
+            if save_path:
+                # Save the content directly to the user-specified location
+                transcriber.output_to_text_file(
+                    transcription, transcriber.get_resource_path(save_path)
                 )
-                if save_path:
-                    # Save the content directly to the user-specified location
-                    helper_functions.output_to_text_file(
-                        transcription, helper_functions.get_resource_path(save_path)
-                    )
-                    # Show a success message to the user
-                    messagebox.showinfo("Fil Gemt", "Din SRT-fil er gemt!")
+                # Show a success message to the user
+                messagebox.showinfo("Fil Gemt", "Din SRT-fil er gemt!")
+
+
+    def transcribe(self, file_path):
+        try:
+            transcription = transcriber.transcribe(transcriber.get_resource_path(file_path))
+            srt_file = transcriber.get_srt_name(transcriber.get_resource_path(file_path))
+            self.save_srt(srt_file, transcription)
 
         except Exception as e:
             # Show an error message to the user if something goes wrong
@@ -144,11 +239,12 @@ class TranscriberApp(tk.Tk):
 
         finally:
             # Re-enable the button after transcription is done or if an error occurred
+            sys.stdout = sys.__stdout__
             self.button.config(state=tk.NORMAL)
 
 
 def main():
-    helper_functions.set_ffmpeg_path()
+    transcriber.set_ffmpeg_path()
     print("Loading")
 
     if is_ffmpeg_available():
@@ -156,7 +252,7 @@ def main():
     else:
         print("ffmpeg is not available!")
 
-    app = TranscriberApp()
+    app = App()
     app.mainloop()
 
 
