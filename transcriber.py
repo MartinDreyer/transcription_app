@@ -1,8 +1,39 @@
+"""
+This program is a simple transcriber, that transcribes 
+audio files and returns an SRT-file. The transcribing is
+done by OpenAI's Whisper model: https://github.com/openai/whisper
+
+This code bundles into an .exe-file that runs on Windows. It is developed on a Windows 11 machine, 
+but has run succesfully on Windows 7 and 10 machines.
+
+Author: Martin Dreyer
+"""
+
+# This file is part of T-tex.
+#
+# T-tex is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License, version 3, as published by
+# the Free Software Foundation.
+#
+# T-tex is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with T-tex. If not, see <https://www.gnu.org/licenses/>.
+
+
 import whisper
 import sys
 import os
 import re
 import traceback
+
+# Set parameters
+MODEL_SIZE = "large"
+LANGUAGE = "danish"
+ALLOWED_EXTENSIONS = ["wav", "mp3", "mp4", "mpga", "webm", "m4a"]
 
 
 def set_ffmpeg_path():
@@ -29,8 +60,8 @@ def transcribe(file_path: str, language: str = "danish", model_size: str = "larg
     try:
         model = whisper.load_model(model_size)
         if model:
-            print("Model loaded succesfully")
-        print("Transcribing file")
+            print(f"Model loaded succesfully")
+        print(f"Transcribing file: {file_path}")
         transcription = model.transcribe(
             get_resource_path(file_path), language=language, fp16=False, verbose=False)
         if transcription:
@@ -72,25 +103,16 @@ def allowed_file(filename, ALLOWED_EXTENSIONS):
     return '.' in filename and \
            filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
-
-
-
-MODEL_SIZE = "large"
-LANGUAGE = "danish"
-ALLOWED_EXTENSIONS = ["wav", "srt"]
-
-
-
-def transcribe_and_generate_srt(file_path):
+def get_srt_name(file_path):
     try:
         if not allowed_file(file_path, ALLOWED_EXTENSIONS):
             raise ValueError("Invalid file type")
             
-        transcription = transcribe(file_path, LANGUAGE, MODEL_SIZE)
         srt_file = re.sub(r"\.[^.]+$", ".srt", os.path.basename(file_path))
 
-        return transcription, srt_file
+        return srt_file
 
     except Exception as e:
-        print(f"Error during transcription: {e}")
+        print(f"Error during creation of srt-file: {e}")
         return None
+
