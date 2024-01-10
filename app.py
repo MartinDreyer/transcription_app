@@ -33,42 +33,9 @@ import threading
 import os
 import subprocess
 import sys
-import whisper
 import traceback
-import re
-import torch
-
-# Transcriber settings
-MODEL_SIZE = 'large'
-LANGUAGE = 'danish'
-ALLOWED_EXTENSIONS = ['wav', 'mp3', 'mp4', 'mpga', 'webm', 'm4a']
-DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
-
-
-# GUI Styling
-FONT = 'Helvetica'
-COLOR = '#102542'
-BACKGROUND = '#f7f7f7'
-BUTTON_COLOR = '#FFFFFF'
-BUTTON_BG = '#102542'
-BUTTON_BG_HOVER = "#006dbd"
-BUTTON_BG_ACTIVE = "#6eb3e6"
-HEIGHT = 200
-WIDTH = 750
-TEXTBOX_BACKGROUND = '#FFFFFF'
-TEXTBOX_COLOR = '#102542'
-
-
-
-def is_ffmpeg_available():
-    try:
-        ffmpeg_path = os.path.join(os.path.dirname(__file__), 'ffmpeg.exe')
-        subprocess.run([ffmpeg_path, '-version'], check=True)
-        print(ffmpeg_path)
-        return True
-    except subprocess.CalledProcessError:
-        return False
-    
+from styling import *
+from settings import *
 
 
 class Transcriber:
@@ -76,8 +43,9 @@ class Transcriber:
         self = self
 
     def set_ffmpeg_path(self):
-    # Assuming the ffmpeg.exe is in the same directory as your main script
-        ffmpeg_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'ffmpeg.exe')
+        # Assuming the ffmpeg.exe is in the same directory as your main script
+        ffmpeg_path = os.path.join(os.path.dirname(
+            os.path.abspath(__file__)), 'ffmpeg.exe')
 
         # Get the current PATH environment variable
         current_path = os.environ.get('PATH', '')
@@ -95,98 +63,87 @@ class Transcriber:
         else:
             # If running as a regular Python script, use the current working directory
             return os.path.join(os.getcwd(), relative_path)
-    
+
     def optimize_file(self, file_path):
         try:
             output_filename = file_path.split(".")[0] + '.ogg'
             ffmpeg_path = self.set_ffmpeg_path()
             command = [
-            ffmpeg_path,
-            '-i', file_path,
-            '-vn',
-            '-map_metadata', '-1',
-            '-ac', '1',
-            '-c:a', 'libopus',
-            '-b:a', '12k',
-            '-application', 'voip',
-            output_filename
+                ffmpeg_path,
+                '-i', file_path,
+                '-vn',
+                '-map_metadata', '-1',
+                '-ac', '1',
+                '-c:a', 'libopus',
+                '-b:a', '12k',
+                '-application', 'voip',
+                output_filename
             ]
-            
+
             result = subprocess.run(command, shell=False)
 
             # Check the return code
             if result.returncode == 0:
                 print(f"Conversion successful. Output file: {output_filename}")
             else:
-                print(f"Error during conversion. Return code: {result.returncode}")
+                print(
+                    f"Error during conversion. Return code: {result.returncode}")
                 print(result.stderr)
-            
-            
+
         except Exception as e:
             traceback.print_exc()
             print(f'Fejl under transskribering: {e}')
             return None
-        
+
     def transcribe(self, file_path: str, language: str = 'da', model_size: str = 'base'):
         self.optimize_file(file_path)
+
         try:
             OUTPUT_DIR = os.path.dirname(file_path)
             command = [
-                'whisper', 
-                file_path,
-                '--language', 
-                language, 
-                '--model', 
-                model_size, 
-                '--output_dir', 
-                OUTPUT_DIR, 
-                '--device', 
+                'whisper',
+                file_path.split(".")[0] + ".ogg",
+                '--language',
+                language,
+                '--model',
+                model_size,
+                '--output_dir',
+                OUTPUT_DIR,
+                '--device',
                 DEVICE,
                 '--word_timestamps',
-                'True',
+                TIMESTAMPS,
                 '--max_line_count',
-                '1',
+                LINE_COUNT,
                 '--output_format',
-                "srt"
+                OUTPUT_FORMAT,
+                '--verbose',
+                VERBOSE
             ]
-        
+            print(f"Running command {command}")
+
             result = subprocess.run(
-                command, 
+                command,
                 capture_output=True,
                 shell=False)
-            
+
             self.textbox = Redirector(result.stdout)
-            # Check the return code
+
             if result.returncode == 0:
                 print(f"Transcription successful.")
-                print(f"Result: {result.stdout}")
+                os.remove(file_path.split(".")[0] + ".ogg")
 
             else:
-                print(f"Error during transcription. Return code: {result.returncode}")
+                print(
+                    f"Error during transcription. Return code: {result.returncode}")
                 print(result.stderr)
         except Exception as e:
             print(f"Error during transcription: {e}")
-
-
-
 
     def allowed_file(self, filename, ALLOWED_EXTENSIONS):
         return '.' in filename and \
             filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
-    def get_srt_name(self, file_path):
-        try:
-            if not self.allowed_file(file_path, ALLOWED_EXTENSIONS):
-                raise ValueError('Ikke tilladt filtype')
-                
-            srt_file = re.sub(r'\.[^.]+$', '.srt', os.path.basename(file_path))
-
-            return srt_file
-
-        except Exception as e:
-            print(f'Fejl ved skrivning til srt-fil: {e}')
-            return None
-    
 
 class Redirector:
     def __init__(self, text_widget):
@@ -209,10 +166,9 @@ class App(tk.Tk):
         self.rowconfigure(0, weight=1)
         self.columnconfigure(0, weight=1)
         self.transcriber = Transcriber()
-
-
+        self.MODEL_SIZE = MODEL_SIZE
         self.label = tk.Label(
-            self, text='Vælg en fil for at få den transskriberet', 
+            self, text='Vælg en fil for at få den transskriberet',
             bg=BACKGROUND,
             fg=COLOR,
             font=(FONT, 14)
@@ -220,54 +176,87 @@ class App(tk.Tk):
         self.label.grid(column=0, row=0)
 
         self.button = tk.Button(
-            self, 
-            text='Vælg Fil', 
+            self,
+            text='Vælg Fil',
             pady=4,
             padx=8,
             width=int((WIDTH*0.05)),
-            bg=BUTTON_BG, 
-            fg=BUTTON_COLOR, 
-            relief= 'flat', 
+            bg=BUTTON_BG,
+            fg=BUTTON_COLOR,
+            relief='flat',
             font=(FONT, 12),
-            borderwidth=0, 
+            borderwidth=0,
             command=self.handle_upload,
             cursor='hand2',
             activebackground=BUTTON_BG_ACTIVE,
             activeforeground=BUTTON_COLOR
-            )
-        
+        )
+
         self.button.grid(column=0, row=1, pady=(HEIGHT/10))
         self.button.bind('<Enter>', self.on_enter)
         self.button.bind('<Leave>', self.on_leave)
 
         options = [
-            "large",
-            "medium",
-            "small", 
-            "base"
+            "Stor",
+            "Mellem",
+            "Lille",
+            "Basal"
         ]
 
         self.clicked = StringVar()
-        self.clicked.set("large")
+        self.clicked.set("Mellem")
 
-        self.dropdown = tk.OptionMenu(self, self.clicked, *options)
-        self.dropdown.grid(column=0, row=3, pady=40, padx=40)
+        def set_model_size(selected_option):
+            if selected_option == "Stor":
+                self.MODEL_SIZE = "large"
+            elif selected_option == "Mellem":
+                self.MODEL_SIZE = "medium"
+            elif selected_option == "Lille":
+                self.MODEL_SIZE = "small"
+            elif selected_option == "Basal":
+                self.MODEL_SIZE = "base"
 
-    
+        self.dropdown = tk.OptionMenu(self,
+                                      self.clicked,
+                                      *options,
+                                      command=set_model_size)
+
+        self.setting_label = tk.Label(
+            self, text='Vælg modelstørrelse (mindre modeller er hurtigere, men transskriberingen er mindre præcis)',
+            bg=BACKGROUND,
+            fg=COLOR,
+            font=(FONT, 10)
+        )
+        self.setting_label.grid(column=0, row=2)
+
+        self.dropdown.grid(column=0, row=3, pady=10, padx=10)
+        self.dropdown.configure(
+            padx=4,
+            pady=8,
+            font=(FONT, 12),
+            relief="flat",
+            cursor='hand2',
+            bg="#333333",
+            fg="#eeeeee",
+            borderwidth=0,
+            width=int((WIDTH*0.01)),
+        )
+
         self.textbox = tk.Text(
-            self, 
-            wrap=tk.WORD, 
+            self,
+            wrap=tk.WORD,
             bg=TEXTBOX_BACKGROUND,
-            fg=TEXTBOX_COLOR, 
+            fg=TEXTBOX_COLOR,
             borderwidth=0,
             padx=10,
             pady=10,
             font=(FONT, 12),
             highlightthickness=3,
-            )
+        )
         self.textbox.config(highlightbackground="#f2f2f2")
-        self.textbox.grid(column=0, row=2, pady=40, padx=40)
-        self.textbox.insert(INSERT, 'Mens programmet arbejder, bliver din transskribering vist her. \n')
+        self.textbox.grid(column=0, row=4, pady=40, padx=40)
+        self.textbox.insert(
+            INSERT, 'Placeholder \n')
         sys.stdout = Redirector(self.textbox)
 
     def on_enter(self, e):
@@ -276,9 +265,6 @@ class App(tk.Tk):
     def on_leave(self, e):
         self.button["bg"] = BUTTON_BG
 
-    def set_model_size(self):
-        MODEL_SIZE = self.clicked.get()
-    
     def handle_upload(self):
         file_path = filedialog.askopenfilename()
         if file_path:
@@ -291,23 +277,11 @@ class App(tk.Tk):
             )
             transcription_thread.start()
 
-    def save_srt(self, srt_file, transcription):
-        if transcription:
-            # Ask the user to specify the save location
-            save_path = filedialog.asksaveasfilename(
-                title='Gem fil som',
-                defaultextension='.srt',
-                filetype=[('SubRip (.srt)', '.srt')],
-                initialfile=srt_file,
-            )
-
-
     def transcribe(self, file_path):
         try:
-            print(f"Transcribing {file_path} using {MODEL_SIZE} model")
-            transcription = self.transcriber.transcribe(self.transcriber.get_resource_path(file_path))
-            srt_file = self.transcriber.get_srt_name(self.transcriber.get_resource_path(file_path))
-            self.save_srt(srt_file, transcription)
+            print(f"Transcribing {file_path} using {self.MODEL_SIZE} model")
+            self.transcriber.transcribe(self.transcriber.get_resource_path(
+                file_path), model_size=self.MODEL_SIZE)
 
         except Exception as e:
             # Show an error message to the user if something goes wrong
@@ -320,12 +294,6 @@ class App(tk.Tk):
 
 
 def main():
-    print('Loading')
-
-    if is_ffmpeg_available():
-        print('ffmpeg is available!')
-    else:
-        print('ffmpeg is not available!')
     app = App()
     app.mainloop()
 
