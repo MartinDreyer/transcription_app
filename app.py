@@ -26,6 +26,7 @@ Author: Martin Dreyer
 
 import tkinter as tk
 from tkinter import INSERT
+from tkinter import StringVar
 import tkinter.messagebox as messagebox
 import tkinter.filedialog as filedialog
 import threading
@@ -35,11 +36,14 @@ import sys
 import whisper
 import traceback
 import re
+import torch
 
 # Transcriber settings
 MODEL_SIZE = 'large'
 LANGUAGE = 'danish'
 ALLOWED_EXTENSIONS = ['wav', 'mp3', 'mp4', 'mpga', 'webm', 'm4a']
+DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
+
 
 # GUI Styling
 FONT = 'Helvetica'
@@ -60,6 +64,7 @@ def is_ffmpeg_available():
     try:
         ffmpeg_path = os.path.join(os.path.dirname(__file__), 'ffmpeg.exe')
         subprocess.run([ffmpeg_path, '-version'], check=True)
+        print(ffmpeg_path)
         return True
     except subprocess.CalledProcessError:
         return False
@@ -80,6 +85,8 @@ class Transcriber:
         # Append the directory containing the ffmpeg executable to the PATH
         os.environ['PATH'] = f'{current_path}{os.pathsep}{os.path.dirname(ffmpeg_path)}'
 
+        return ffmpeg_path
+
     def get_resource_path(self, relative_path):
         '''Get the absolute path to the resource, works for development and PyInstaller'''
         if hasattr(sys, '_MEIPASS'):
@@ -88,48 +95,81 @@ class Transcriber:
         else:
             # If running as a regular Python script, use the current working directory
             return os.path.join(os.getcwd(), relative_path)
-    def transcribe(self, file_path: str, language: str = 'danish', model_size: str = 'large'):
+    
+    def optimize_file(self, file_path):
         try:
-            print('Indlæser transskriberingsmodel.')
-            model = whisper.load_model(model_size)
-            if model:
-                print(f'Transskriberingsmodel indlæst.')
-            print(f'Transskriberer fil: {os.path.basename(file_path)}')
-            transcription = model.transcribe(
-                self.get_resource_path(file_path), language=language, fp16=False, verbose=True)
-            if transcription:
-                print('Transskribering færdig.')
-            return transcription
+            output_filename = file_path.split(".")[0] + '.ogg'
+            ffmpeg_path = self.set_ffmpeg_path()
+            command = [
+            ffmpeg_path,
+            '-i', file_path,
+            '-vn',
+            '-map_metadata', '-1',
+            '-ac', '1',
+            '-c:a', 'libopus',
+            '-b:a', '12k',
+            '-application', 'voip',
+            output_filename
+            ]
+            
+            result = subprocess.run(command, shell=False)
+
+            # Check the return code
+            if result.returncode == 0:
+                print(f"Conversion successful. Output file: {output_filename}")
+            else:
+                print(f"Error during conversion. Return code: {result.returncode}")
+                print(result.stderr)
+            
+            
         except Exception as e:
             traceback.print_exc()
             print(f'Fejl under transskribering: {e}')
             return None
         
-    def float_to_time(self, float_value: float):
-        milliseconds = int((float_value % 1) * 1000)
-        seconds = int(float_value % 60)
-        minutes = int((float_value // 60) % 60)
-        hours = int(float_value // 3600)
-
-        time_str = f'{hours:02d}:{minutes:02d}:{seconds:02d},{milliseconds:03d}'
-        return time_str
-
-    def output_to_text_file(self, data_dict: dict, output_file_name: str):
-        index = 1
+    def transcribe(self, file_path: str, language: str = 'da', model_size: str = 'base'):
+        self.optimize_file(file_path)
         try:
-            with open(output_file_name, 'w', encoding='utf-8') as file:
-                for value in data_dict['segments']:
-                    start_time_str = self.float_to_time(value['start'])
-                    end_time_str = self.float_to_time(value['end'])
-                    text = value['text'].strip()
-                    file.write(f'{index}\n')
-                    file.write(f'{start_time_str} --> {end_time_str}\n')
-                    file.write(f'{text}\n\n')
-                    index += 1
-
-        except Exception as e:
-            print(f'Fejl ved skrivning til tekstfil: {e}')
+            OUTPUT_DIR = os.path.dirname(file_path)
+            command = [
+                'whisper', 
+                file_path,
+                '--language', 
+                language, 
+                '--model', 
+                model_size, 
+                '--output_dir', 
+                OUTPUT_DIR, 
+                '--device', 
+                DEVICE,
+                '--word_timestamps',
+                'True',
+                '--max_line_count',
+                '1',
+                '--output_format',
+                "srt"
+            ]
         
+            result = subprocess.run(
+                command, 
+                capture_output=True,
+                shell=False)
+            
+            self.textbox = Redirector(result.stdout)
+            # Check the return code
+            if result.returncode == 0:
+                print(f"Transcription successful.")
+                print(f"Result: {result.stdout}")
+
+            else:
+                print(f"Error during transcription. Return code: {result.returncode}")
+                print(result.stderr)
+        except Exception as e:
+            print(f"Error during transcription: {e}")
+
+
+
+
     def allowed_file(self, filename, ALLOWED_EXTENSIONS):
         return '.' in filename and \
             filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
@@ -157,7 +197,6 @@ class Redirector:
         self.text_widget.insert(tk.END, text)
         self.text_widget.see(tk.END)
 
-transcriber = Transcriber()
 
 class App(tk.Tk):
     def __init__(self):
@@ -165,10 +204,12 @@ class App(tk.Tk):
         self.frame = tk.Frame(self, height=HEIGHT, width=WIDTH)
         self.frame.config(bg=BACKGROUND, )
         self.config(bg=BACKGROUND)
-        self.title('windowshvisker')
+        self.title('T-TEX')
         self.frame.grid()
         self.rowconfigure(0, weight=1)
         self.columnconfigure(0, weight=1)
+        self.transcriber = Transcriber()
+
 
         self.label = tk.Label(
             self, text='Vælg en fil for at få den transskriberet', 
@@ -199,6 +240,20 @@ class App(tk.Tk):
         self.button.bind('<Enter>', self.on_enter)
         self.button.bind('<Leave>', self.on_leave)
 
+        options = [
+            "large",
+            "medium",
+            "small", 
+            "base"
+        ]
+
+        self.clicked = StringVar()
+        self.clicked.set("large")
+
+        self.dropdown = tk.OptionMenu(self, self.clicked, *options)
+        self.dropdown.grid(column=0, row=3, pady=40, padx=40)
+
+    
         self.textbox = tk.Text(
             self, 
             wrap=tk.WORD, 
@@ -220,6 +275,9 @@ class App(tk.Tk):
 
     def on_leave(self, e):
         self.button["bg"] = BUTTON_BG
+
+    def set_model_size(self):
+        MODEL_SIZE = self.clicked.get()
     
     def handle_upload(self):
         file_path = filedialog.askopenfilename()
@@ -242,20 +300,13 @@ class App(tk.Tk):
                 filetype=[('SubRip (.srt)', '.srt')],
                 initialfile=srt_file,
             )
-            if save_path:
-                # Save the content directly to the user-specified location
-                transcriber.output_to_text_file(
-                    transcription, transcriber.get_resource_path(save_path)
-                )
-                # Show a success message to the user
-                messagebox.showinfo('Fil Gemt', 'Din SRT-fil er gemt!')
-                self.animating = False
 
 
     def transcribe(self, file_path):
         try:
-            transcription = transcriber.transcribe(transcriber.get_resource_path(file_path))
-            srt_file = transcriber.get_srt_name(transcriber.get_resource_path(file_path))
+            print(f"Transcribing {file_path} using {MODEL_SIZE} model")
+            transcription = self.transcriber.transcribe(self.transcriber.get_resource_path(file_path))
+            srt_file = self.transcriber.get_srt_name(self.transcriber.get_resource_path(file_path))
             self.save_srt(srt_file, transcription)
 
         except Exception as e:
@@ -269,7 +320,6 @@ class App(tk.Tk):
 
 
 def main():
-    transcriber.set_ffmpeg_path()
     print('Loading')
 
     if is_ffmpeg_available():
