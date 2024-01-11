@@ -23,274 +23,149 @@ Author: Martin Dreyer
 # You should have received a copy of the GNU General Public License
 # along with T-tex. If not, see <https://www.gnu.org/licenses/>.
 
-
 import tkinter as tk
-from tkinter import INSERT
 from tkinter import StringVar
-import tkinter.messagebox as messagebox
-import tkinter.filedialog as filedialog
-import threading
-import os
-import subprocess
 import sys
-import traceback
 from styling import *
 from settings import *
-
-
-class Transcriber:
-    def __init__(self):
-        self = self
-
-    def set_ffmpeg_path(self):
-        # Assuming the ffmpeg.exe is in the same directory as your main script
-        ffmpeg_path = os.path.join(os.path.dirname(
-            os.path.abspath(__file__)), 'ffmpeg.exe')
-
-        # Get the current PATH environment variable
-        current_path = os.environ.get('PATH', '')
-
-        # Append the directory containing the ffmpeg executable to the PATH
-        os.environ['PATH'] = f'{current_path}{os.pathsep}{os.path.dirname(ffmpeg_path)}'
-
-        return ffmpeg_path
-
-    def get_resource_path(self, relative_path):
-        '''Get the absolute path to the resource, works for development and PyInstaller'''
-        if hasattr(sys, '_MEIPASS'):
-            # If running as a PyInstaller executable, use sys._MEIPASS
-            return os.path.join(sys._MEIPASS, relative_path)
-        else:
-            # If running as a regular Python script, use the current working directory
-            return os.path.join(os.getcwd(), relative_path)
-
-    def optimize_file(self, file_path):
-        try:
-            output_filename = file_path.split(".")[0] + '.ogg'
-            ffmpeg_path = self.set_ffmpeg_path()
-            command = [
-                ffmpeg_path,
-                '-i', file_path,
-                '-vn',
-                '-map_metadata', '-1',
-                '-ac', '1',
-                '-c:a', 'libopus',
-                '-b:a', '12k',
-                '-application', 'voip',
-                output_filename
-            ]
-
-            result = subprocess.run(command, shell=False)
-
-            # Check the return code
-            if result.returncode == 0:
-                print(f"Conversion successful. Output file: {output_filename}")
-            else:
-                print(
-                    f"Error during conversion. Return code: {result.returncode}")
-                print(result.stderr)
-
-        except Exception as e:
-            traceback.print_exc()
-            print(f'Fejl under transskribering: {e}')
-            return None
-
-    def transcribe(self, file_path: str, language: str = 'da', model_size: str = 'base'):
-        self.optimize_file(file_path)
-
-        try:
-            OUTPUT_DIR = os.path.dirname(file_path)
-            command = [
-                'whisper',
-                file_path.split(".")[0] + ".ogg",
-                '--language',
-                language,
-                '--model',
-                model_size,
-                '--output_dir',
-                OUTPUT_DIR,
-                '--device',
-                DEVICE,
-                '--word_timestamps',
-                TIMESTAMPS,
-                '--max_line_count',
-                LINE_COUNT,
-                '--output_format',
-                OUTPUT_FORMAT,
-                '--verbose',
-                VERBOSE
-            ]
-            print(f"Running command {command}")
-
-            result = subprocess.run(
-                command,
-                capture_output=True,
-                shell=False)
-
-            self.textbox = Redirector(result.stdout)
-
-            if result.returncode == 0:
-                print(f"Transcription successful.")
-                os.remove(file_path.split(".")[0] + ".ogg")
-
-            else:
-                print(
-                    f"Error during transcription. Return code: {result.returncode}")
-                print(result.stderr)
-        except Exception as e:
-            print(f"Error during transcription: {e}")
-
-    def allowed_file(self, filename, ALLOWED_EXTENSIONS):
-        return '.' in filename and \
-            filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
-
-
-class Redirector:
-    def __init__(self, text_widget):
-        self.text_widget = text_widget
-
-    def write(self, text):
-        # Append the text to the Text widget
-        self.text_widget.insert(tk.END, text)
-        self.text_widget.see(tk.END)
-
+from redirector import Redirector
+import tkinter.filedialog as filedialog
 
 class App(tk.Tk):
     def __init__(self):
         super().__init__()
-        self.frame = tk.Frame(self, height=HEIGHT, width=WIDTH)
-        self.frame.config(bg=BACKGROUND, )
-        self.config(bg=BACKGROUND)
-        self.title('T-TEX')
-        self.frame.grid()
-        self.rowconfigure(0, weight=1)
-        self.columnconfigure(0, weight=1)
-        self.transcriber = Transcriber()
-        self.MODEL_SIZE = MODEL_SIZE
-        self.label = tk.Label(
-            self, text='Vælg en fil for at få den transskriberet',
-            bg=BACKGROUND,
-            fg=COLOR,
-            font=(FONT, 14)
-        )
-        self.label.grid(column=0, row=0)
+        self.title("T-TEX")
+        self.model_size = MODEL_SIZE
+        self.configure_grid(0, 1)
+        self.configure_background(BACKGROUND)
+        self.frame = self.create_frame(height=HEIGHT, width=WIDTH, background=BACKGROUND)
+        self.label = self.create_label(labeltext="Vælg en fil for at få den transskriberet", background=BACKGROUND, color=COLOR, font=FONT, fontsize=LABEL_FONTSIZE, colpos=0, rowpos=0)
+        self.select_button = self.create_button( buttontext="Vælg fil", pady=4, padx=8, width=int((WIDTH*0.05)), font=FONT, fontsize=12, background=BUTTON_BG, color=BUTTON_COLOR, command=self.handle_upload, activebackground=BUTTON_BG_ACTIVE, activeforeground=BUTTON_FG_ACTIVE)
+        self.dropdown = self.create_dropdown(command=self.set_model_size, background=BACKGROUND, color=COLOR, font=FONT, fontsize=12)
+        self.textbox = self.create_textbox(textbackground=TEXTBOX_BACKGROUND, textcolor=TEXTBOX_COLOR, font=FONT, fontsize=12, highlightbackground="#f2f2f2")
 
-        self.button = tk.Button(
-            self,
-            text='Vælg Fil',
-            pady=4,
-            padx=8,
-            width=int((WIDTH*0.05)),
-            bg=BUTTON_BG,
-            fg=BUTTON_COLOR,
+    def on_enter(self, e):
+        self.select_button["bg"] = BUTTON_BG_HOVER
+
+    def on_leave(self, e):
+        self.select_button["bg"] = BUTTON_BG
+    
+    def configure_background(self, background):
+        self.config(bg=background)
+
+    def configure_grid(self, index, weight):
+        self.rowconfigure(index=index, weight=weight)
+        self.columnconfigure(index=index, weight=weight)
+
+    def create_button(self, buttontext, pady, padx, width, background, color, font, fontsize, command, activebackground, activeforeground):
+        button = tk.Button(
+            self, 
+            text=buttontext,
+            pady=pady,
+            padx=padx,
+            width=width,
+            bg=background,
+            fg=color,
             relief='flat',
-            font=(FONT, 12),
+            font=(font, fontsize),
             borderwidth=0,
-            command=self.handle_upload,
+            command=command,
             cursor='hand2',
-            activebackground=BUTTON_BG_ACTIVE,
-            activeforeground=BUTTON_COLOR
+            activebackground=activebackground,
+            activeforeground=activeforeground
         )
 
-        self.button.grid(column=0, row=1, pady=(HEIGHT/10))
-        self.button.bind('<Enter>', self.on_enter)
-        self.button.bind('<Leave>', self.on_leave)
+        button.grid(column=0, row=1, pady=(HEIGHT/10))
+        button.bind('<Enter>', self.on_enter)
+        button.bind('<Leave>', self.on_leave)
 
+        return button
+    
+    def create_dropdown(self, command, background, color, font, fontsize):
         options = [
             "Stor",
             "Mellem",
             "Lille",
             "Basal"
         ]
-
-        self.clicked = StringVar()
-        self.clicked.set("Mellem")
-
-        def set_model_size(selected_option):
-            if selected_option == "Stor":
-                self.MODEL_SIZE = "large"
-            elif selected_option == "Mellem":
-                self.MODEL_SIZE = "medium"
-            elif selected_option == "Lille":
-                self.MODEL_SIZE = "small"
-            elif selected_option == "Basal":
-                self.MODEL_SIZE = "base"
-
-        self.dropdown = tk.OptionMenu(self,
-                                      self.clicked,
+        clicked = StringVar()
+        clicked.set("Mellem")
+        dropdown = tk.OptionMenu(self,
+                                      clicked,
                                       *options,
-                                      command=set_model_size)
+                                      command=command)
 
-        self.setting_label = tk.Label(
+        setting_label = tk.Label(
             self, text='Vælg modelstørrelse (mindre modeller er hurtigere, men transskriberingen er mindre præcis)',
-            bg=BACKGROUND,
-            fg=COLOR,
-            font=(FONT, 10)
+            bg=background,
+            fg=color,
+            font=(font, (fontsize - 2))
         )
-        self.setting_label.grid(column=0, row=2)
+        setting_label.grid(column=0, row=2)
 
-        self.dropdown.grid(column=0, row=3, pady=10, padx=10)
-        self.dropdown.configure(
+        dropdown.grid(column=0, row=3, pady=10, padx=10)
+        dropdown.configure(
             padx=4,
             pady=8,
-            font=(FONT, 12),
+            font=(font, fontsize),
             relief="flat",
             cursor='hand2',
-            bg="#333333",
-            fg="#eeeeee",
+            bg=background,
+            fg=color,
             borderwidth=0,
             width=int((WIDTH*0.01)),
         )
 
-        self.textbox = tk.Text(
+        return dropdown
+
+    def create_frame(self, height, width, background):
+        frame = tk.Frame(self, height=height, width=width, bg=background)
+        frame.grid()
+        return frame
+    
+    def create_label(self, labeltext, background, color, font, fontsize, colpos, rowpos):
+        label = tk.Label(
+        self, text=labeltext,
+        bg=background,
+        fg=color,
+        font=(font, fontsize)
+        )
+        label.grid(column=colpos, row=rowpos)
+        return label
+    
+    def create_textbox(self, textbackground, textcolor, font, fontsize, highlightbackground):
+        textbox = tk.Text(
             self,
             wrap=tk.WORD,
-            bg=TEXTBOX_BACKGROUND,
-            fg=TEXTBOX_COLOR,
+            bg=textbackground,
+            fg=textcolor,
             borderwidth=0,
             padx=10,
             pady=10,
-            font=(FONT, 12),
+            font=(font, fontsize),
             highlightthickness=3,
         )
-        self.textbox.config(highlightbackground="#f2f2f2")
-        self.textbox.grid(column=0, row=4, pady=40, padx=40)
-        self.textbox.insert(
-            INSERT, 'Placeholder \n')
-        sys.stdout = Redirector(self.textbox)
+        textbox.config(highlightbackground=highlightbackground)
+        textbox.grid(column=0, row=4, pady=40, padx=40)
+        sys.stdout = Redirector(textbox)
 
-    def on_enter(self, e):
-        self.button["bg"] = BUTTON_BG_HOVER
-
-    def on_leave(self, e):
-        self.button["bg"] = BUTTON_BG
+        return textbox
+    
+    def set_model_size(self, selected_option):
+        print(selected_option)
+        if selected_option == "Stor":
+            self.MODEL_SIZE = "large"
+        elif selected_option == "Mellem":
+            self.MODEL_SIZE = "medium"
+        elif selected_option == "Lille":
+            self.MODEL_SIZE = "small"
+        elif selected_option == "Basal":
+            self.MODEL_SIZE = "base"
 
     def handle_upload(self):
         file_path = filedialog.askopenfilename()
-        if file_path:
-            # Disable the button to avoid multiple clicks during transcription
-            self.button.config(state=tk.DISABLED)
+        
 
-            # Start the transcription task in a separate thread
-            transcription_thread = threading.Thread(
-                target=self.transcribe, args=(file_path,)
-            )
-            transcription_thread.start()
-
-    def transcribe(self, file_path):
-        try:
-            print(f"Transcribing {file_path} using {self.MODEL_SIZE} model")
-            self.transcriber.transcribe(self.transcriber.get_resource_path(
-                file_path), model_size=self.MODEL_SIZE)
-
-        except Exception as e:
-            # Show an error message to the user if something goes wrong
-            messagebox.showerror('Error', f'An error occurred: {str(e)}')
-
-        finally:
-            # Re-enable the button after transcription is done or if an error occurred
-            sys.stdout = sys.__stdout__
-            self.button.config(state=tk.NORMAL)
 
 
 def main():
