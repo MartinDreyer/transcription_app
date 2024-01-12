@@ -37,7 +37,7 @@ exe = EXE(
     pyz,
     a.scripts,
     [],
-    name='T-TEX',
+    name='windowshvisker',
     debug=False,
     bootloader_ignore_signals=False,
     runtime_tmpdir=None,
@@ -58,5 +58,5 @@ coll = COLLECT(
     strip=False,
     upx=True,
     upx_exclude=[],
-    name='T-TEX',
+    name='windowshvisker',
 )

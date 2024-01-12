@@ -2,7 +2,7 @@ import torch
 
 
 # Transcriber settings
-LANGUAGE = 'danish'
+LANGUAGE = 'da'
 ALLOWED_EXTENSIONS = ['wav', 'mp3', 'mp4', 'mpga', 'webm', 'm4a']
 DEVICE = 'cuda' if torch.cuda.is_available() else 'cpu'
 MODEL_SIZE = 'medium'
