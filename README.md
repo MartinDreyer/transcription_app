@@ -1,6 +1,6 @@
-# windowshvisker
+# T-tex
 
-**windowshvisker** is a program for transcribing soundfiles to SubRip-format (.srt) in Danish. It is developed by TV 2 Fyn.
+**T-tex** is a program for transcribing soundfiles to SubRip-format (.srt) in Danish. It is developed by TV 2 Fyn.
 
 ## Getting Started
 
@@ -8,6 +8,7 @@
 
 - [Python](https://www.python.org/downloads/) (version: the app was developed using 3.11, but might run on other versions)
 - [Pipenv](https://pipenv.pypa.io/en/latest/#install-pipenv-today) (install using `pip install pipenv`)
+- [ffmpeg](https://ffmpeg.org/download.html) (the ffmpeg.exe should be placed in the root folder, when the pyinstaller runs)
 
 ### Installation
 
