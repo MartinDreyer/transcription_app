@@ -4,7 +4,7 @@ from PyInstaller.utils.hooks import collect_all
 from PyInstaller.utils.hooks import copy_metadata
 
 datas = []
-binaries = [('ffmpeg.exe', '.')]
+binaries = [('ffmpeg', '.')]
 hiddenimports = []
 datas += collect_data_files('whisper')
 datas += copy_metadata('openai-whisper')
@@ -51,4 +51,10 @@ coll = COLLECT(
     upx=True,
     upx_exclude=[],
     name='T-TEX',
+)
+app = BUNDLE(
+    coll,
+    name='T-TEX.app',
+    icon=None,
+    bundle_identifier=None,
 )

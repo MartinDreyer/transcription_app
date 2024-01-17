@@ -35,6 +35,8 @@ from redirector import Redirector
 from styling import *
 from settings import *
 import whisper
+import platform
+
 class App(tk.Tk):
     def __init__(self):
         super().__init__()
@@ -52,12 +54,14 @@ class App(tk.Tk):
         self.textbox = self.create_textbox(textbackground=TEXTBOX_BACKGROUND, textcolor=TEXTBOX_COLOR, font=FONT, fontsize=12, highlightbackground="#f2f2f2", colpos=0, rowpos=6)
         self.file_path = None
         self.current_file_label = self.create_label(labeltext=f"Valgt fil: {'Ingen' if self.file_path is None else self.file_path}", background=BACKGROUND, color=COLOR, font=FONT, fontsize=LABEL_FONTSIZE, colpos=0, rowpos=1)
+        self.ffmpeg_path = os.path.join(os.path.dirname(__file__), 'ffmpeg')
+        self.set_ffmpeg_path()
 
 
     def is_ffmpeg_available(self):
         try:
-            ffmpeg_path = os.path.join(os.path.dirname(__file__), 'ffmpeg.exe')
-            subprocess.run([ffmpeg_path, '-version'], check=True)
+            result = subprocess.run([self.ffmpeg_path, '-version'], check=True, capture_output=True)
+            print(result.stdout)
             return True
         except subprocess.CalledProcessError:
             return False
@@ -88,9 +92,9 @@ class App(tk.Tk):
             font=(font, fontsize),
             borderwidth=0,
             command=command,
-            cursor="hand2",
+            cursor="hand",
             activebackground=activebackground,
-            activeforeground=activeforeground
+            activeforeground=activeforeground,
         )
 
         button.grid(column=colpos, row=rowpos, pady=(HEIGHT/10))
@@ -122,7 +126,7 @@ class App(tk.Tk):
             pady=8,
             font=(font, fontsize),
             relief="flat",
-            cursor="hand2",
+            cursor="hand",
             bg=background,
             fg=color,
             borderwidth=0,
@@ -182,25 +186,13 @@ class App(tk.Tk):
             self.current_file_label.config(text=f"Valgt fil: {self.file_path.split('/')[-1]}")
         else:
             print(f"Forkert filtype. Følgende filtyper er godtaget: {ALLOWED_EXTENSIONS}")
-
-    def set_ffmpeg_path(self):
-        # Assuming the ffmpeg.exe is in the same directory as your main script
-        ffmpeg_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "ffmpeg.exe")
-
-        # Get the current PATH environment variable
-        current_path = os.environ.get("PATH", "")
-
-        # Append the directory containing the ffmpeg executable to the PATH
-        os.environ["PATH"] = f"{current_path}{os.pathsep}{os.path.dirname(ffmpeg_path)}"
-
-        return ffmpeg_path
     
     def optimize_file(self, file_path):
         try:
             output_filename = file_path.split(".")[0] + ".ogg"
-            ffmpeg_path = self.set_ffmpeg_path()
+
             command = [
-                ffmpeg_path,
+                self.ffmpeg_path,
                 "-i", file_path,
                 "-vn",
                 "-map_metadata", "-1",
@@ -240,13 +232,13 @@ class App(tk.Tk):
     def get_resource_path(self, relative_path):
         """ Get absolute path to resource, works for dev and for PyInstaller """
         try:
-            # PyInstaller creates a temp folder and stores path in _MEIPASS
-            base_path = sys._MEIPASS
-        except Exception:
+            if getattr(sys, 'frozen', False) and hasattr(sys, '_MEIPASS'):
+                return os.path.join(sys._MEIPASS, relative_path)
+            else:
+                return os.path.join(os.path.abspath("."), relative_path)
+        except Exception as e:
             traceback.print_exc()
-            base_path = os.path.abspath(".")
-
-        return os.path.join(base_path, relative_path)
+            print(f"Error getting resource path: {e}")
     
     def float_to_time(self, float_value: float):
         milliseconds = int((float_value % 1) * 1000)
@@ -257,7 +249,7 @@ class App(tk.Tk):
         time_str = f"{hours:02d}:{minutes:02d}:{seconds:02d},{milliseconds:03d}"
         return time_str
     
-    def save_tanscription(self, result, output_filename):
+    def save_transcription(self, result, output_filename):
         index = 1
         try:
             with open(output_filename, "w", encoding="utf-8") as file:
@@ -274,16 +266,21 @@ class App(tk.Tk):
         except Exception as e:
             traceback.print_exc()
             print(f"Fejl ved skrivning til tekstfil: {e}")
+
+    def set_ffmpeg_path(self):
+        # Assuming the ffmpeg.exe is in the same directory as your main script
+        ffmpeg_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "ffmpeg")
+
+        # Get the current PATH environment variable
+        current_path = os.environ.get("PATH", "")
+
+        # Append the directory containing the ffmpeg executable to the PATH
+        os.environ["PATH"] = f"{current_path}{os.pathsep}{os.path.dirname(ffmpeg_path)}"
         
     def transcribe(self, file_path):
         try:
             if file_path is None:
                 return
-            
-            if self.is_ffmpeg_available():
-                print('ffmpeg is available!')
-            else:
-                print('ffmpeg is not available!')
 
             if file_path is not None:
                 print("Initializing")
@@ -296,12 +293,18 @@ class App(tk.Tk):
                 model = whisper.load_model(self.model_size, device=DEVICE)
 
                 if model:
-                    print("Transcribing ...")
-                result = model.transcribe(audio=self.get_resource_path(ogg_file), fp16=FP16, word_timestamps=TIMESTAMPS)
+                    try:
+                        print("Transcribing ...")
+
+                  
+                        result = model.transcribe(audio=ogg_file, fp16=FP16, word_timestamps=TIMESTAMPS)
+                    except Exception as e:
+                        traceback.print_exc()
+                        print(f"Error during transcription task {e}")
                 if result:
                     if ogg_file:
                         os.remove(self.get_resource_path(ogg_file))
-                    self.save_tanscription(result, (os.path.join(directory, filename.split('.')[0] + '.' + self.output_format)))
+                    self.save_transcription(result, (os.path.join(directory, filename.split('.')[0] + '.' + self.output_format)))
 
                     self.transcribe_button.config(state=tk.NORMAL)
                     print(f"{filename.split('.')[0] + '.' + self.output_format} saved to {directory + '/'} ")
@@ -309,7 +312,7 @@ class App(tk.Tk):
                     
         except Exception as e:
             traceback.print_exc()
-            print(f"Error during transcription: {e}")
+            print(f"Error in transcribe function: {e}")
 
 
 def main():

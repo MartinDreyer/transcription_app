@@ -29,8 +29,11 @@ pip install -r requirements.txt
 
 # 5. Place ffmpeg.exe in root
 
-# 6. Create executable
+# 6. Create executable (Windows)
 pyinstaller -n T-TEX --add-binary "ffmpeg.exe":"." --collect-data "whisper" --copy-metadata "openai-whisper" --collect-all "whisper" --noconsole  app.py
+
+# 6. Create executable (MacOS)
+pyinstaller -n T-TEX --add-binary "ffmpeg":"." --collect-data "whisper" --copy-metadata "openai-whisper" --collect-all "whisper" --noconsole  app.py
 ```
 
 ### Running the Executable
