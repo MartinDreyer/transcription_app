@@ -35,6 +35,7 @@ from redirector import Redirector
 from styling import *
 from settings import *
 import whisper
+import tkinter.messagebox as messagebox
 class App(tk.Tk):
     def __init__(self):
         super().__init__()
@@ -48,18 +49,35 @@ class App(tk.Tk):
         self.label = self.create_label(labeltext="Vælg en fil for at få den transskriberet", background=BACKGROUND, color=COLOR, font=FONT, fontsize=LABEL_FONTSIZE, colpos=0, rowpos=0)
         self.select_button = self.create_button( buttontext="Vælg fil", pady=4, padx=8, width=int((WIDTH*0.05)), font=FONT, fontsize=12, background=BUTTON_BG, color=BUTTON_COLOR, command=self.handle_upload, activebackground=BUTTON_BG_ACTIVE, activeforeground=BUTTON_FG_ACTIVE, colpos=0, rowpos=2)
         self.transcribe_button = self.create_button( buttontext="Transkribér", pady=4, padx=8, width=int((WIDTH*0.05)), font=FONT, fontsize=12, background=BUTTON_BG, color=BUTTON_COLOR, command=self.start_transcription_thread, activebackground=BUTTON_BG_ACTIVE, activeforeground=BUTTON_FG_ACTIVE, colpos=0, rowpos=3)
-        self.dropdown = self.create_dropdown(command=self.set_model_size, background=BACKGROUND, color=COLOR, font=FONT, fontsize=12, colpos=0, rowpos=4)
-        self.textbox = self.create_textbox(textbackground=TEXTBOX_BACKGROUND, textcolor=TEXTBOX_COLOR, font=FONT, fontsize=12, highlightbackground="#f2f2f2", colpos=0, rowpos=6)
+        self.model_dropdown = self.create_dropdown(command=self.set_model_size, initial_option="Mellem", labeltext="Vælg modelstørrelse (mindre modeller er hurtigere, men transskriberingen er mindre præcis)", background=BACKGROUND, color=COLOR, font=FONT, fontsize=12, colpos=0, rowpos=4, relief="flat", cursor="hand2" ,options=[
+            "Stor",
+            "Mellem",
+            "Lille",
+            "Basal"
+        ])
+        self.line_dropdown = self.create_dropdown(command=self.set_line_length, labeltext="Vælg linjelængde", background=BACKGROUND, color=COLOR, font=FONT, fontsize=12, colpos=0, rowpos=6, options=['30 tegn', '40 tegn', '50 tegn'], initial_option=40, cursor="hand2", relief="flat")
+        self.textbox = self.create_textbox(textbackground=TEXTBOX_BACKGROUND, textcolor=TEXTBOX_COLOR, font=FONT, fontsize=12, highlightbackground="#f2f2f2", colpos=0, rowpos=8)
         self.file_path = None
         self.current_file_label = self.create_label(labeltext=f"Valgt fil: {'Ingen' if self.file_path is None else self.file_path}", background=BACKGROUND, color=COLOR, font=FONT, fontsize=LABEL_FONTSIZE, colpos=0, rowpos=1)
+        self.max_line_length = 40
+        self.line = ''
+        self.lines = []
+        self.start_times = []
+        self.start = ''
+        self.end = ''
+        self.redirector = Redirector(self.textbox)
+        sys.stdout = self.redirector
 
 
-    def is_ffmpeg_available(self):
+    def check_ffmpeg(self):
         try:
+            
             ffmpeg_path = os.path.join(os.path.dirname(__file__), 'ffmpeg.exe')
             subprocess.run([ffmpeg_path, '-version'], check=True)
+            print("ffmpeg is available!")
             return True
         except subprocess.CalledProcessError:
+            print("ffmpeg is not available!")
             return False
 
     def on_enter(self, event, button):
@@ -99,21 +117,18 @@ class App(tk.Tk):
 
         return button
     
-    def create_dropdown(self, command, background, color, font, fontsize, colpos, rowpos):
-        options = [
-            "Stor",
-            "Mellem",
-            "Lille",
-            "Basal"
-        ]
+    def create_dropdown(self, command, labeltext, background, color, font, fontsize, colpos, rowpos, options, initial_option, cursor, relief):
+
+        options = options
+
         clicked = StringVar()
-        clicked.set("Mellem")
+        clicked.set(initial_option)
         dropdown = tk.OptionMenu(self,
                                       clicked,
                                       *options,
                                       command=command)
         
-        self.create_label(labeltext="Vælg modelstørrelse (mindre modeller er hurtigere, men transskriberingen er mindre præcis)", background=BACKGROUND, color=COLOR, font=FONT, fontsize=DROPDOWN_LABEL_FONTSIZE, colpos=colpos, rowpos=rowpos)
+        self.create_label(labeltext=labeltext, background=BACKGROUND, color=COLOR, font=FONT, fontsize=DROPDOWN_LABEL_FONTSIZE, colpos=colpos, rowpos=rowpos)
 
 
         dropdown.grid(column=colpos, row=rowpos+1, pady=10, padx=10)
@@ -121,8 +136,8 @@ class App(tk.Tk):
             padx=4,
             pady=8,
             font=(font, fontsize),
-            relief="flat",
-            cursor="hand2",
+            relief=relief,
+            cursor=cursor,
             bg=background,
             fg=color,
             borderwidth=0,
@@ -160,7 +175,6 @@ class App(tk.Tk):
         )
         textbox.config(highlightbackground=highlightbackground)
         textbox.grid(column=colpos, row=rowpos, pady=40, padx=40)
-        sys.stdout = Redirector(textbox)
 
         return textbox
     
@@ -173,6 +187,14 @@ class App(tk.Tk):
             self.model_size = "small"
         elif selected_option == "Basal":
             self.model_size = "base"
+
+    def set_line_length(self, selected_option):
+        if selected_option == '50 tegn':
+            self.max_line_length = 50
+        elif selected_option == '40 tegn':
+            self.max_line_length = 40
+        elif selected_option == 30:
+            self.max_line_length = '30 tegn'
 
     def handle_upload(self):
         self.file_path = filedialog.askopenfilename()
@@ -233,83 +255,152 @@ class App(tk.Tk):
                     target=self.transcribe, args=(self.file_path,)
                 )
                 transcription_thread.start()
+
             except Exception as e:
                 traceback.print_exc()
                 print(f"Error starting transcription thread: {e}")
     
     def get_resource_path(self, relative_path):
         """ Get absolute path to resource, works for dev and for PyInstaller """
-        try:
-            # PyInstaller creates a temp folder and stores path in _MEIPASS
-            base_path = sys._MEIPASS
-        except Exception:
-            traceback.print_exc()
-            base_path = os.path.abspath(".")
 
-        return os.path.join(base_path, relative_path)
+        if getattr(sys, 'frozen', False) and hasattr(sys, '_MEIPASS'):
+            return os.path.join(sys._MEIPASS, relative_path)
+        else:
+            return os.path.join(os.path.abspath("."), relative_path)
+
     
     def float_to_time(self, float_value: float):
-        milliseconds = int((float_value % 1) * 1000)
-        seconds = int(float_value % 60)
-        minutes = int((float_value // 60) % 60)
-        hours = int(float_value // 3600)
+        try:
+            milliseconds = int((float_value % 1) * 1000)
+            seconds = int(float_value % 60)
+            minutes = int((float_value // 60) % 60)
+            hours = int(float_value // 3600)
 
-        time_str = f"{hours:02d}:{minutes:02d}:{seconds:02d},{milliseconds:03d}"
-        return time_str
+            time_str = f"{hours:02d}:{minutes:02d}:{seconds:02d},{milliseconds:03d}"
+            return time_str
+        except Exception as e:
+            traceback.print_exc()
+            print(f"Error converting float to time format: {e}")
+
     
-    def save_tanscription(self, result, output_filename):
-        index = 1
-        try:
-            with open(output_filename, "w", encoding="utf-8") as file:
-                for value in result["segments"]:
-                    start_time_str = self.float_to_time(value["start"])
-                    end_time_str = self.float_to_time(value["end"])
-                    text = value["text"].strip()
-                    file.write(f"{index}\n")
-                    file.write(f"{start_time_str} --> {end_time_str}\n")
-                    file.write(f"{text}\n\n")
-                    index += 1
+    def process_words(self, result, max_line_length=42, output_filename="output.srt"):
+        all_words = []
+        index = 0
+        for value in result["segments"]:
+            for word in value["words"]:
+                all_words.append({
+                    "id": index,
+                    "word": word["word"],
+                    "start": word["start"],
+                    "end": word["end"]
+                })
+                index += 1
             
+        return all_words
 
-        except Exception as e:
-            traceback.print_exc()
-            print(f"Fejl ved skrivning til tekstfil: {e}")
+    def get_first_timecode(self, start_times):
+        smallest = start_times[0]
+        for val in start_times:
+            if val < smallest:
+                smallest = val
+            
+        return smallest
         
-    def transcribe(self, file_path):
+    def add_word(self, word, max_line_length):
+        word_text = word["word"]
+        chars = [".",",","!","?"]
+        if any((c in chars) for c in word_text) and len(self.line) < max_line_length and len(self.line) > max_line_length // 2:
+            self.line += word_text
+            self.end = word["end"]
+            self.start_times.append(word["start"])
+            start_time = self.get_first_timecode(self.start_times)
+            self.lines.append({
+                "text": self.line,
+                "start": start_time,
+                "end": self.end
+            })
+            self.line = ""
+            self.start_times = []
+        elif len(self.line) < max_line_length:
+            self.line += word_text
+            self.end = word["end"]
+            self.start_times.append(word["start"])
+        else:
+            start_time = self.get_first_timecode(self.start_times)
+            self.lines.append({
+                "text": self.line,
+                "start": start_time,
+                "end": self.end
+            })
+            self.line = ""
+            self.start_times = []
+            return
+    
+
+    def create_srt(self, words_list, max_line_length, output_filename):
+        for word in words_list:
+            self.add_word(word, max_line_length)
+        index = 1
+        with open(output_filename, "w", encoding="utf-8") as f:
+            for line in self.lines:
+                start_time_str = self.float_to_time(line["start"])
+                end_time_str = self.float_to_time(line["end"])
+                text = line["text"].strip()
+                f.write(f"{index}\n")
+                f.write(f"{start_time_str} --> {end_time_str}\n")
+                f.write(f"{text}\n\n")
+                index += 1
+
+    def validate_file_path(self, file_path):
+        if file_path is not None:
+            directory, filename = os.path.split(file_path)
+            if os.path.exists(directory) and os.path.isfile(file_path):
+                return True
+        return False
+
+    def transcribe_filepath(self, file_path):
         try:
-            if file_path is None:
-                return
+            self.transcribe_button.config(state=tk.DISABLED)
+            ogg_file = self.optimize_file(file_path)
+
+            print(f'Loading {self.model_size.upper()} model')
+            model = whisper.load_model(self.model_size, device=DEVICE)
+            if model:
+                print('Transcribing ...')
+            result = model.transcribe(audio=self.get_resource_path(ogg_file), fp16=FP16, word_timestamps=TIMESTAMPS)
             
-            if self.is_ffmpeg_available():
-                print('ffmpeg is available!')
-            else:
-                print('ffmpeg is not available!')
-
-            if file_path is not None:
-                print("Initializing")
-                directory, filename = os.path.split(file_path)
-                self.transcribe_button.config(state=tk.DISABLED)
-
-                ogg_file = self.optimize_file(self.file_path)
-                
-                print(f"Loading {self.model_size.upper()} model")
-                model = whisper.load_model(self.model_size, device=DEVICE)
-
-                if model:
-                    print("Transcribing ...")
-                result = model.transcribe(audio=self.get_resource_path(ogg_file), fp16=FP16, word_timestamps=TIMESTAMPS)
-                if result:
-                    if ogg_file:
-                        os.remove(self.get_resource_path(ogg_file))
-                    self.save_tanscription(result, (os.path.join(directory, filename.split('.')[0] + '.' + self.output_format)))
-
-                    self.transcribe_button.config(state=tk.NORMAL)
-                    print(f"{filename.split('.')[0] + '.' + self.output_format} saved to {directory + '/'} ")
-                    print("Transcription finished.")
-                    
+            if ogg_file:
+                os.remove(self.get_resource_path(ogg_file))
+            self.transcribe_button.config(state=tk.NORMAL)
+            
+            return result
         except Exception as e:
-            traceback.print_exc()
-            print(f"Error during transcription: {e}")
+            print(f'Error during transcription: {e}')
+
+    def save_transcription(self, result, file_path):
+        try:
+            directory, filename = os.path.split(file_path)
+            save_path = filedialog.asksaveasfilename(
+                title="Gem fil som", defaultextension=".srt", filetype=[("SubRip (.srt)", ".srt")], initialfile=(filename.split(".")[0] + "." + self.output_format)
+            )
+            words = self.process_words(result=result, output_filename=(os.path.join(directory, filename.split('.')[0] + '.' + self.output_format)), max_line_length=self.max_line_length)
+            if save_path:
+                self.create_srt(words_list=words, max_line_length=self.max_line_length, output_filename=save_path)
+                messagebox.showinfo("Fil Gemt", "Din SRT-fil er gemt!")
+            print(f'{filename.split(".")[0] + "." + self.output_format} saved to {save_path} ')
+            print('Transcription finished.')
+        except IOError as e:
+            print(f'Error during saving transcription: {e}')
+            
+            
+    def transcribe(self, file_path):
+        if self.validate_file_path(file_path) and self.check_ffmpeg():  
+            print('Initializing')
+            result = self.transcribe_filepath(file_path)
+            if result:
+                self.save_transcription(result, file_path)
+        else:
+            print("Invalid file path or ffmpeg not available.") 
 
 
 def main():
