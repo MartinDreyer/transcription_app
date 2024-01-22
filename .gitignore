@@ -4,4 +4,4 @@ dist/
 __pycache__/
 build/
 ffmpeg.exe
-.venv
+.venv/
