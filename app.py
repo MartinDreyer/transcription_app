@@ -36,6 +36,10 @@ from styling import *
 from settings import *
 import whisper
 import tkinter.messagebox as messagebox
+from openai import OpenAI
+
+
+
 class App(tk.Tk):
     def __init__(self):
         super().__init__()
@@ -43,6 +47,10 @@ class App(tk.Tk):
         self.model_size = MODEL_SIZE
         self.output_dir = OUTPUT_DIR
         self.output_format = OUTPUT_FORMAT
+        self.language = LANGUAGE
+        self.ai_powered = True
+        self.device = "cuda" if torch.cuda.is_available() else "cpu"
+        self.line_breaks = True
         self.configure_grid(0, 1)
         self.configure_background(BACKGROUND)
         self.frame = self.create_frame(height=HEIGHT, width=WIDTH, background=BACKGROUND)
@@ -55,11 +63,11 @@ class App(tk.Tk):
             "Lille",
             "Basal"
         ])
-        self.line_dropdown = self.create_dropdown(command=self.set_line_length, labeltext="Vælg linjelængde", background=BACKGROUND, color=COLOR, font=FONT, fontsize=12, colpos=0, rowpos=6, options=['30 tegn', '40 tegn', '50 tegn'], initial_option=40, cursor="hand2", relief="flat")
+        self.line_dropdown = self.create_dropdown(command=self.set_line_length, labeltext="Vælg linjelængde", background=BACKGROUND, color=COLOR, font=FONT, fontsize=12, colpos=0, rowpos=6, options=['50 tegn', '60 tegn', '70 tegn'], initial_option=50, cursor="hand2", relief="flat")
         self.textbox = self.create_textbox(textbackground=TEXTBOX_BACKGROUND, textcolor=TEXTBOX_COLOR, font=FONT, fontsize=12, highlightbackground="#f2f2f2", colpos=0, rowpos=8)
         self.file_path = None
         self.current_file_label = self.create_label(labeltext=f"Valgt fil: {'Ingen' if self.file_path is None else self.file_path}", background=BACKGROUND, color=COLOR, font=FONT, fontsize=LABEL_FONTSIZE, colpos=0, rowpos=1)
-        self.max_line_length = 40
+        self.max_line_length = 50
         self.line = ''
         self.lines = []
         self.start_times = []
@@ -67,6 +75,7 @@ class App(tk.Tk):
         self.end = ''
         self.redirector = Redirector(self.textbox)
         sys.stdout = self.redirector
+        print(f"Running on {self.device}")
 
 
     def check_ffmpeg(self):
@@ -189,12 +198,12 @@ class App(tk.Tk):
             self.model_size = "base"
 
     def set_line_length(self, selected_option):
-        if selected_option == '50 tegn':
+        if selected_option == '70 tegn':
+            self.max_line_length = 70
+        elif selected_option == '60 tegn':
+            self.max_line_length = 60
+        elif selected_option == '50 tegn':
             self.max_line_length = 50
-        elif selected_option == '40 tegn':
-            self.max_line_length = 40
-        elif selected_option == 30:
-            self.max_line_length = '30 tegn'
 
     def handle_upload(self):
         self.file_path = filedialog.askopenfilename()
@@ -307,34 +316,39 @@ class App(tk.Tk):
         return smallest
         
     def add_word(self, word, max_line_length):
-        word_text = word["word"]
-        chars = [".",",","!","?"]
-        if any((c in chars) for c in word_text) and len(self.line) < max_line_length and len(self.line) > max_line_length // 2:
-            self.line += word_text
-            self.end = word["end"]
-            self.start_times.append(word["start"])
-            start_time = self.get_first_timecode(self.start_times)
-            self.lines.append({
-                "text": self.line,
-                "start": start_time,
-                "end": self.end
-            })
-            self.line = ""
-            self.start_times = []
-        elif len(self.line) < max_line_length:
-            self.line += word_text
-            self.end = word["end"]
-            self.start_times.append(word["start"])
-        else:
-            start_time = self.get_first_timecode(self.start_times)
-            self.lines.append({
-                "text": self.line,
-                "start": start_time,
-                "end": self.end
-            })
-            self.line = ""
-            self.start_times = []
-            return
+        if self.line_breaks:
+            word_text = word["word"]
+            chars = [".", ",","!","?"]
+            if any((c in chars) for c in word_text) and len(self.line) <= max_line_length:
+                self.line += word_text
+                self.end = word["end"]
+                self.start_times.append(word["start"])
+                start_time = self.get_first_timecode(self.start_times)
+                self.lines.append({
+                    "text": self.line,
+                    "start": start_time,
+                    "end": self.end
+                })
+                self.line = ""
+                self.start_times = []
+                return
+            elif len(self.line) <= max_line_length:
+                self.line += word_text
+                self.end = word["end"]
+                self.start_times.append(word["start"])
+                return
+
+            else:
+                self.line += word_text
+                start_time = self.get_first_timecode(self.start_times)
+                self.lines.append({
+                    "text": self.line,
+                    "start": start_time,
+                    "end": self.end
+                })
+                self.line = ""
+                self.start_times = []
+                return
     
 
     def create_srt(self, words_list, max_line_length, output_filename):
@@ -367,7 +381,7 @@ class App(tk.Tk):
             model = whisper.load_model(self.model_size, device=DEVICE)
             if model:
                 print('Transcribing ...')
-            result = model.transcribe(audio=self.get_resource_path(ogg_file), fp16=FP16, word_timestamps=TIMESTAMPS)
+            result = model.transcribe(audio=self.get_resource_path(ogg_file), fp16=FP16, word_timestamps=TIMESTAMPS, verbose=VERBOSE)
             
             if ogg_file:
                 os.remove(self.get_resource_path(ogg_file))
@@ -377,6 +391,22 @@ class App(tk.Tk):
         except Exception as e:
             print(f'Error during transcription: {e}')
 
+    def get_transcription(self, words, save_path):
+        client = OpenAI( api_key="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")
+        response = client.chat.completions.create(
+            model="gpt-3.5-turbo",
+            messages=[    
+                {"role": "system", "content": "You are a subtitle generator. You will be provided with list of objects each containing a word, an id, a start time and an end time. You will produce a text in an srt-format. (i.e. ``1\n00:00:05,439 --> 00:00:06,459\nDet er en forkærlighed,\n\n2\n00:00:06,480 --> 00:00:06,780\nder har været,\n\n3\n00:00:06,839 --> 00:00:07,480\nsiden man var helt ung.\n\n4\n00:00:07,759 --> 00:00:09,800\nLigesom små børn kan lide traktorer,\n``) The lines must be no longer than 50 characters. You will also check for spelling mistakes. The srt file should be in danish. You will return only the text for the srt-file."},
+                {"role": "user", "content": words}]
+        )
+
+        print(response.content)
+
+
+
+
+    
+
     def save_transcription(self, result, file_path):
         try:
             directory, filename = os.path.split(file_path)
@@ -384,8 +414,14 @@ class App(tk.Tk):
                 title="Gem fil som", defaultextension=".srt", filetype=[("SubRip (.srt)", ".srt")], initialfile=(filename.split(".")[0] + "." + self.output_format)
             )
             words = self.process_words(result=result, output_filename=(os.path.join(directory, filename.split('.')[0] + '.' + self.output_format)), max_line_length=self.max_line_length)
+            
+            print(words)
             if save_path:
-                self.create_srt(words_list=words, max_line_length=self.max_line_length, output_filename=save_path)
+                if self.ai_powered:
+                    self.get_transcription(words, save_path)
+                
+                else:
+                    self.create_srt(words_list=words, max_line_length=self.max_line_length, output_filename=save_path)
                 messagebox.showinfo("Fil Gemt", "Din SRT-fil er gemt!")
             print(f'{filename.split(".")[0] + "." + self.output_format} saved to {save_path} ')
             print('Transcription finished.')
