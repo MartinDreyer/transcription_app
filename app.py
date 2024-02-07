@@ -37,7 +37,10 @@ from settings import *
 import whisper
 import tkinter.messagebox as messagebox
 from openai import OpenAI
-
+import json
+from dotenv import load_dotenv
+from prompt import prompt
+load_dotenv()
 
 
 class App(tk.Tk):
@@ -57,14 +60,16 @@ class App(tk.Tk):
         self.label = self.create_label(labeltext="Vælg en fil for at få den transskriberet", background=BACKGROUND, color=COLOR, font=FONT, fontsize=LABEL_FONTSIZE, colpos=0, rowpos=0)
         self.select_button = self.create_button( buttontext="Vælg fil", pady=4, padx=8, width=int((WIDTH*0.05)), font=FONT, fontsize=12, background=BUTTON_BG, color=BUTTON_COLOR, command=self.handle_upload, activebackground=BUTTON_BG_ACTIVE, activeforeground=BUTTON_FG_ACTIVE, colpos=0, rowpos=2)
         self.transcribe_button = self.create_button( buttontext="Transkribér", pady=4, padx=8, width=int((WIDTH*0.05)), font=FONT, fontsize=12, background=BUTTON_BG, color=BUTTON_COLOR, command=self.start_transcription_thread, activebackground=BUTTON_BG_ACTIVE, activeforeground=BUTTON_FG_ACTIVE, colpos=0, rowpos=3)
-        self.model_dropdown = self.create_dropdown(command=self.set_model_size, initial_option="Mellem", labeltext="Vælg modelstørrelse (mindre modeller er hurtigere, men transskriberingen er mindre præcis)", background=BACKGROUND, color=COLOR, font=FONT, fontsize=12, colpos=0, rowpos=4, relief="flat", cursor="hand2" ,options=[
+        self.model_dropdown = self.create_dropdown(command=self.set_model_size, initial_option="Mellem", labeltext="Vælg modelstørrelse (mindre modeller er hurtigere, men transskriberingen er mindre præcis)", background=BACKGROUND, color=COLOR, font=FONT, fontsize=12, colpos=0, rowpos=5, relief="flat", cursor="hand2" ,options=[
             "Stor",
             "Mellem",
             "Lille",
             "Basal"
         ])
-        self.line_dropdown = self.create_dropdown(command=self.set_line_length, labeltext="Vælg linjelængde", background=BACKGROUND, color=COLOR, font=FONT, fontsize=12, colpos=0, rowpos=6, options=['50 tegn', '60 tegn', '70 tegn'], initial_option=50, cursor="hand2", relief="flat")
-        self.textbox = self.create_textbox(textbackground=TEXTBOX_BACKGROUND, textcolor=TEXTBOX_COLOR, font=FONT, fontsize=12, highlightbackground="#f2f2f2", colpos=0, rowpos=8)
+        self.line_dropdown = self.create_dropdown(command=self.set_line_length, labeltext="Vælg linjelængde", background=BACKGROUND, color=COLOR, font=FONT, fontsize=12, colpos=0, rowpos=7, options=['50 tegn', '60 tegn', '70 tegn'], initial_option=50, cursor="hand2", relief="flat")
+        self.textbox = self.create_textbox(textbackground=TEXTBOX_BACKGROUND, textcolor=TEXTBOX_COLOR, font=FONT, fontsize=12, highlightbackground="#f2f2f2", colpos=0, rowpos=9)
+        self.check_ai_powered = self.create_checkbutton(text="Brug Open AI's API til at forbedre undertekster (kræver internetadgang)", command=self.set_ai_powered)
+
         self.file_path = None
         self.current_file_label = self.create_label(labeltext=f"Valgt fil: {'Ingen' if self.file_path is None else self.file_path}", background=BACKGROUND, color=COLOR, font=FONT, fontsize=LABEL_FONTSIZE, colpos=0, rowpos=1)
         self.max_line_length = 50
@@ -101,6 +106,26 @@ class App(tk.Tk):
     def configure_grid(self, index, weight):
         self.rowconfigure(index=index, weight=weight)
         self.columnconfigure(index=index, weight=weight)
+
+    def set_ai_powered(self, value):
+        if value == 1:
+            self.ai_powered = True
+        else:
+            self.ai_powered = False
+
+    def create_checkbutton(self, text, command, onvalue=1, offvalue=0):
+        checkbox = tk.Checkbutton(self,
+                                  text=text,
+                                  onvalue=onvalue,
+                                  offvalue=offvalue,
+                                  command=lambda: command(checkbox.var.get())
+                                  )
+        checkbox.var = tk.IntVar() 
+        checkbox.config(variable=checkbox.var)
+        checkbox.grid(column=0, row=4)
+
+        return checkbox
+
 
     def create_button(self, buttontext, pady, padx, width, background, color, font, fontsize, command, activebackground, activeforeground, colpos, rowpos):
         button = tk.Button(
@@ -360,6 +385,10 @@ class App(tk.Tk):
                 start_time_str = self.float_to_time(line["start"])
                 end_time_str = self.float_to_time(line["end"])
                 text = line["text"].strip()
+                if text and not text[0].isupper():
+                    text = "- " + text
+                if text and text[-1] not in ['.', '?', '!']:
+                    text += " -"
                 f.write(f"{index}\n")
                 f.write(f"{start_time_str} --> {end_time_str}\n")
                 f.write(f"{text}\n\n")
@@ -391,21 +420,73 @@ class App(tk.Tk):
         except Exception as e:
             print(f'Error during transcription: {e}')
 
-    def get_transcription(self, words, save_path):
-        client = OpenAI( api_key="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")
-        response = client.chat.completions.create(
-            model="gpt-3.5-turbo",
-            messages=[    
-                {"role": "system", "content": "You are a subtitle generator. You will be provided with list of objects each containing a word, an id, a start time and an end time. You will produce a text in an srt-format. (i.e. ``1\n00:00:05,439 --> 00:00:06,459\nDet er en forkærlighed,\n\n2\n00:00:06,480 --> 00:00:06,780\nder har været,\n\n3\n00:00:06,839 --> 00:00:07,480\nsiden man var helt ung.\n\n4\n00:00:07,759 --> 00:00:09,800\nLigesom små børn kan lide traktorer,\n``) The lines must be no longer than 50 characters. You will also check for spelling mistakes. The srt file should be in danish. You will return only the text for the srt-file."},
-                {"role": "user", "content": words}]
-        )
+    def split_list_in_objects(self, words, max_length):
+        current_length = 0
+        current_objects = []
 
-        print(response.content)
+        for word in words:
+            word_length = len(word['word'])  # Adjust this according to your actual criteria
+            # Check if adding the current word would exceed the maximum length
+            if current_length + word_length <= max_length:
+                current_objects.append(word)
+                current_length += word_length
+            else:
+                # Yield the current set of objects and start a new accumulation
+                yield current_objects
+                current_objects = [word]
+                current_length = word_length
+
+        # Yield the last set of objects
+        if current_objects:
+            yield current_objects
+
+    def get_transcription(self, batched_words, file_path):
+            print("Enhancing subtitles using Open AI API")
+            self.transcribe_button.config(state=tk.DISABLED)
+
+            result = []
+            srt_index = 1
+            for batch in batched_words:
+                client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+                response = client.chat.completions.create(
+                    model="gpt-4",
+                    messages=[    
+                        {"role": "system", "content": (prompt + str(srt_index)) + "," + str(self.max_line_length) },
+                        {"role": "user", "content": str(batch)}]
+                )
+
+                res = json.loads(response.choices[0].message.content)
+                for segment in res["segments"]:
+                    result.append(segment)
+                srt_index = (res["segments"][-1]["index"] + 1)
+
+            try:
+                directory, filename = os.path.split(file_path)
+                save_path = filedialog.asksaveasfilename(
+                    title="Gem fil som", defaultextension=".srt", filetype=[("SubRip (.srt)", ".srt")], initialfile=(filename.split(".")[0] + "." + self.output_format)
+                )
+
+                if save_path:
+                    with open(save_path, "w", encoding="utf-8") as f:
+                        for line in result:
+                            start_time = line["start"]
+                            end_time = line["end"]
+                            text = line["text"].strip()
+                            index = line["index"]
+                            if text and not text[0].isupper():
+                                text = "- " + text
+                            if text and text[-1] not in ['.', '?', '!']:
+                                text += " -"
+                            f.write(f"{index}\n")
+                            f.write(f"{start_time} --> {end_time}\n")
+                            f.write(f"{text}\n\n")
+                self.transcribe_button.config(state=tk.NORMAL)
+
+            except Exception as e:
+                print(f"Error during execution of get_transcription {e}")
 
 
-
-
-    
+        
 
     def save_transcription(self, result, file_path):
         try:
@@ -415,13 +496,8 @@ class App(tk.Tk):
             )
             words = self.process_words(result=result, output_filename=(os.path.join(directory, filename.split('.')[0] + '.' + self.output_format)), max_line_length=self.max_line_length)
             
-            print(words)
             if save_path:
-                if self.ai_powered:
-                    self.get_transcription(words, save_path)
-                
-                else:
-                    self.create_srt(words_list=words, max_line_length=self.max_line_length, output_filename=save_path)
+                self.create_srt(words_list=words, max_line_length=self.max_line_length, output_filename=save_path)
                 messagebox.showinfo("Fil Gemt", "Din SRT-fil er gemt!")
             print(f'{filename.split(".")[0] + "." + self.output_format} saved to {save_path} ')
             print('Transcription finished.')
@@ -434,7 +510,14 @@ class App(tk.Tk):
             print('Initializing')
             result = self.transcribe_filepath(file_path)
             if result:
-                self.save_transcription(result, file_path)
+                directory, filename = os.path.split(file_path)
+                words = self.process_words(result=result, output_filename=(os.path.join(directory, filename.split('.')[0] + '.' + self.output_format)), max_line_length=self.max_line_length)
+                if self.ai_powered:
+                    directory, filename = os.path.split(file_path)
+                    batched_words = self.split_list_in_objects(words=words, max_length=400)
+                    self.get_transcription(batched_words=batched_words, file_path=(file_path.split(".")[0] +".srt"))
+                else:
+                    self.save_transcription(result, file_path)
         else:
             print("Invalid file path or ffmpeg not available.") 
 
