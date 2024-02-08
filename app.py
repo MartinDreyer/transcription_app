@@ -60,15 +60,17 @@ class App(tk.Tk):
         self.label = self.create_label(labeltext="Vælg en fil for at få den transskriberet", background=BACKGROUND, color=COLOR, font=FONT, fontsize=LABEL_FONTSIZE, colpos=0, rowpos=0)
         self.select_button = self.create_button( buttontext="Vælg fil", pady=4, padx=8, width=int((WIDTH*0.05)), font=FONT, fontsize=12, background=BUTTON_BG, color=BUTTON_COLOR, command=self.handle_upload, activebackground=BUTTON_BG_ACTIVE, activeforeground=BUTTON_FG_ACTIVE, colpos=0, rowpos=2)
         self.transcribe_button = self.create_button( buttontext="Transkribér", pady=4, padx=8, width=int((WIDTH*0.05)), font=FONT, fontsize=12, background=BUTTON_BG, color=BUTTON_COLOR, command=self.start_transcription_thread, activebackground=BUTTON_BG_ACTIVE, activeforeground=BUTTON_FG_ACTIVE, colpos=0, rowpos=3)
-        self.model_dropdown = self.create_dropdown(command=self.set_model_size, initial_option="Mellem", labeltext="Vælg modelstørrelse (mindre modeller er hurtigere, men transskriberingen er mindre præcis)", background=BACKGROUND, color=COLOR, font=FONT, fontsize=12, colpos=0, rowpos=5, relief="flat", cursor="hand2" ,options=[
+        self.model_dropdown = self.create_dropdown(command=self.set_model_size, initial_option="Mellem", labeltext="Vælg modelstørrelse (mindre modeller er hurtigere, men transskriberingen er mindre præcis)", background=BACKGROUND, color=COLOR, font=FONT, fontsize=12, colpos=0, rowpos=7, relief="flat", cursor="hand2" ,options=[
             "Stor",
             "Mellem",
             "Lille",
             "Basal"
         ])
-        self.line_dropdown = self.create_dropdown(command=self.set_line_length, labeltext="Vælg linjelængde", background=BACKGROUND, color=COLOR, font=FONT, fontsize=12, colpos=0, rowpos=7, options=['50 tegn', '60 tegn', '70 tegn'], initial_option=50, cursor="hand2", relief="flat")
-        self.textbox = self.create_textbox(textbackground=TEXTBOX_BACKGROUND, textcolor=TEXTBOX_COLOR, font=FONT, fontsize=12, highlightbackground="#f2f2f2", colpos=0, rowpos=9)
+        self.line_dropdown = self.create_dropdown(command=self.set_line_length, labeltext="Vælg linjelængde", background=BACKGROUND, color=COLOR, font=FONT, fontsize=12, colpos=0, rowpos=9, options=['50 tegn', '60 tegn', '70 tegn'], initial_option=50, cursor="hand2", relief="flat")
+        self.textbox = self.create_textbox(textbackground=TEXTBOX_BACKGROUND, textcolor=TEXTBOX_COLOR, font=FONT, fontsize=12, highlightbackground="#f2f2f2", colpos=0, rowpos=11)
         self.check_ai_powered = self.create_checkbutton(text="Brug Open AI's API til at forbedre undertekster (kræver internetadgang)", command=self.set_ai_powered)
+        self.api_key = None
+        self.api_key_entry = self.create_entry(command=self.set_api_key,rowpos=6, placeholder="Skriv API Nøgle her")
 
         self.file_path = None
         self.current_file_label = self.create_label(labeltext=f"Valgt fil: {'Ingen' if self.file_path is None else self.file_path}", background=BACKGROUND, color=COLOR, font=FONT, fontsize=LABEL_FONTSIZE, colpos=0, rowpos=1)
@@ -112,6 +114,29 @@ class App(tk.Tk):
             self.ai_powered = True
         else:
             self.ai_powered = False
+
+    def set_api_key(self, value):
+        self.api_key = value
+
+    def create_entry(self, command, rowpos, placeholder):
+        entry = tk.Entry(self)
+        
+        # Define a variable to keep track of whether the user has started typing or not
+        typing = False
+        
+        def on_key(event):
+            nonlocal typing
+            if not typing:
+                entry.delete(0, tk.END)  # Clear placeholder text
+                entry.config(show="●")   # Show dots (password mode)
+                typing = True            # Set typing to True to indicate user started typing
+            command(entry.get())
+
+        entry.bind("<Key>", on_key)
+        entry.insert(0, placeholder)
+        entry.grid(column=0, row=rowpos)
+        return entry
+
 
     def create_checkbutton(self, text, command, onvalue=1, offvalue=0):
         checkbox = tk.Checkbutton(self,
@@ -447,9 +472,10 @@ class App(tk.Tk):
             result = []
             srt_index = 1
             for batch in batched_words:
-                client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+                client = OpenAI(api_key=self.api_key)
                 response = client.chat.completions.create(
                     model="gpt-4",
+                    temperature=0.9,
                     messages=[    
                         {"role": "system", "content": (prompt + str(srt_index)) + "," + str(self.max_line_length) },
                         {"role": "user", "content": str(batch)}]
@@ -512,14 +538,14 @@ class App(tk.Tk):
             if result:
                 directory, filename = os.path.split(file_path)
                 words = self.process_words(result=result, output_filename=(os.path.join(directory, filename.split('.')[0] + '.' + self.output_format)), max_line_length=self.max_line_length)
-                if self.ai_powered:
+                if self.ai_powered and self.api_key is not None:
                     directory, filename = os.path.split(file_path)
-                    batched_words = self.split_list_in_objects(words=words, max_length=400)
+                    batched_words = self.split_list_in_objects(words=words, max_length=300)
                     self.get_transcription(batched_words=batched_words, file_path=(file_path.split(".")[0] +".srt"))
                 else:
                     self.save_transcription(result, file_path)
         else:
-            print("Invalid file path or ffmpeg not available.") 
+            print("Error during creation of SRT") 
 
 
 def main():
